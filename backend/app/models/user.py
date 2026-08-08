@@ -17,3 +17,6 @@ class User(Base):
 
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     sessions = relationship("UserSession", back_populates="user")
+
+    is_biometric_enrolled = Column(Boolean, default=False, nullable=False)  # New column to track biometric enrollment
+    biometric_enrollment = relationship("BiometricEnrollment", back_populates="user", uselist=False) 
