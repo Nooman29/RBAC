@@ -24,3 +24,18 @@ def create_access_token(data: dict) -> str:
 
 def decode_access_token(token: str) -> dict:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+def create_pending_token(user_id: int):
+    expire = datetime.utcnow() + timedelta(seconds=settings.PENDING_TOKEN_EXPIRE_SECONDS)
+    payload = {"sub": str(user_id), "scope": "pending_2fa", "exp": expire}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_pending_token(token: str) -> int | None:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("scope") != "pending_2fa":
+            return None
+        return int(payload["sub"])
+    except JWTError:
+        return None
