@@ -7,7 +7,7 @@ from app.models.otp import OTPCode
 from app.core.config import settings
 
 
-def generate_and_send_otp(db: Session, user_id: int, recipient_email: str) -> bool:
+def generate_and_send_otp(db: Session, user_id: str, recipient_email: str) -> bool:
     code = str(random.randint(100000, 999999))
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_EXPIRY_SECONDS)
 

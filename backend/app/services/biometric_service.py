@@ -5,18 +5,16 @@ import cv2
 from deepface import DeepFace
 from sqlalchemy.orm import Session
 from app.models.biometric import BiometricEnrollment
-from app.core.config import settings  # adjust import to match your config pattern
+from app.core.config import settings
 
 
 def decode_base64_image(image_b64: str):
-    """Convert a base64 string (from the client) into an OpenCV image."""
     img_bytes = base64.b64decode(image_b64)
     np_arr = np.frombuffer(img_bytes, np.uint8)
     return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
 
 def extract_embedding(image_b64: str):
-    """Run face detection + embedding extraction. Returns None if no face found."""
     frame = decode_base64_image(image_b64)
     try:
         result = DeepFace.represent(
@@ -50,7 +48,7 @@ def enroll_face(db: Session, user_id: int, image_b64: str) -> bool:
     return True
 
 
-def verify_face(db: Session, user_id: int, image_b64: str) -> bool:
+def verify_face(db: Session, user_id: str, image_b64: str) -> bool:
     enrollment = db.query(BiometricEnrollment).filter_by(user_id=user_id).first()
     if enrollment is None:
         return False

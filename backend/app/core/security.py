@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 
 from app.core.config import settings
 
@@ -25,17 +25,18 @@ def create_access_token(data: dict) -> str:
 def decode_access_token(token: str) -> dict:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
-def create_pending_token(user_id: int):
-    expire = datetime.utcnow() + timedelta(seconds=settings.PENDING_TOKEN_EXPIRE_SECONDS)
+
+def create_pending_token(user_id) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(seconds=settings.PENDING_TOKEN_EXPIRE_SECONDS)
     payload = {"sub": str(user_id), "scope": "pending_2fa", "exp": expire}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_pending_token(token: str) -> int | None:
+def decode_pending_token(token: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         if payload.get("scope") != "pending_2fa":
             return None
-        return int(payload["sub"])
+        return payload["sub"]  # user_id as string — cast at call site if needed
     except JWTError:
         return None
