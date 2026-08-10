@@ -29,3 +29,14 @@ class Token(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+class PermissionOut(BaseModel):
+    permission_id: int
+    resource_name: str
+    action_type: str
+    description: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoleDetail(RoleOut):
+    permissions: List[PermissionOut] = []
