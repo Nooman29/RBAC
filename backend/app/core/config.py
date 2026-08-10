@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Pending-auth token (short-lived, issued after password check, before 2nd factor)
     PENDING_TOKEN_EXPIRE_SECONDS: int = 300
 
+    # Isolation Forest anomaly detection — artifacts produced by
+    # scripts/train_isolation_forest.py, loaded by app/services/anomaly_service.py
+    ISOLATION_FOREST_MODEL_PATH: str = "app/ml/models/isolation_forest.joblib"
+    ISOLATION_FOREST_SCALER_PATH: str = "app/ml/models/scaler.joblib"
+    ISOLATION_FOREST_THRESHOLD_PATH: str = "app/ml/models/threshold.json"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

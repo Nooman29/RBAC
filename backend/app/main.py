@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app.db.database import get_db, Base, engine
 from app import models
 from app.api.routes import users, roles, auth
+from app.models import anomaly
 
 app = FastAPI()
 
