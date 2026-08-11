@@ -4,6 +4,9 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Alerts from "./pages/Alerts";
 import AlertDetail from "./pages/AlertDetail";
+import Users from "./pages/Users";
+import Roles from "./pages/Roles";
+import RoleDetail from "./pages/RoleDetail";
 import "./App.css";
 
 function ProtectedRoute({ children }) {
@@ -27,6 +30,8 @@ function Layout({ children }) {
         <span className="brand">RBAC Admin</span>
         <Link to="/">Dashboard</Link>
         <Link to="/alerts">Alerts</Link>
+        <Link to="/users">Users</Link>
+        <Link to="/roles">Roles</Link>
         <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
@@ -36,41 +41,25 @@ function Layout({ children }) {
   );
 }
 
+function Wrapped({ children }) {
+  return (
+    <ProtectedRoute>
+      <Layout>{children}</Layout>
+    </ProtectedRoute>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/alerts"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Alerts />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/alerts/:alertId"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <AlertDetail />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<Wrapped><Dashboard /></Wrapped>} />
+        <Route path="/alerts" element={<Wrapped><Alerts /></Wrapped>} />
+        <Route path="/alerts/:alertId" element={<Wrapped><AlertDetail /></Wrapped>} />
+        <Route path="/users" element={<Wrapped><Users /></Wrapped>} />
+        <Route path="/roles" element={<Wrapped><Roles /></Wrapped>} />
+        <Route path="/roles/:roleId" element={<Wrapped><RoleDetail /></Wrapped>} />
       </Routes>
     </AuthProvider>
   );
