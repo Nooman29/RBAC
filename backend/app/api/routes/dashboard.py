@@ -11,12 +11,14 @@ from app.models.session import UserSession
 from app.models.user import User
 from app.models.role import Role
 from app.models.anomaly import AnomalyAlert
+from app.services import anomaly_service
 from app.schemas.dashboard import (
     DashboardSummary,
     AnomalyAlertSummary,
     AnomalyAlertDetail,
     AlertReviewUpdate,
     SessionOut,
+    TerminateSessionResult,
 )
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -53,8 +55,8 @@ def get_summary(db: Session = Depends(get_db)):
     dependencies=[Depends(require_permission("dashboard", "read"))],
 )
 def list_alerts(
-    only_anomalous: bool = Query(True, description="If true, only return flagged anomalies"),
-    include_reviewed: bool = Query(True, description="If false, hide already-reviewed alerts"),
+    only_anomalous: bool = Query(True),
+    include_reviewed: bool = Query(True),
     db: Session = Depends(get_db),
 ):
     query = db.query(AnomalyAlert)
@@ -88,6 +90,7 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
     session = alert.session
     user = session.user if session else None
     features = json.loads(alert.features_json) if alert.features_json else {}
+    shap_contributions = json.loads(alert.shap_values_json) if alert.shap_values_json else []
 
     return AnomalyAlertDetail(
         alert_id=alert.alert_id,
@@ -101,10 +104,12 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         reviewed_by=alert.reviewed_by,
         notes=alert.notes,
         features=features,
+        shap_contributions=shap_contributions,
         role_names=[r.role_name for r in user.roles] if user else [],
         login_time=session.login_time if session else alert.alert_timestamp,
         session_duration=session.session_duration if session else None,
         access_location=session.access_location if session else None,
+        session_terminated=session.terminated if session else False,
     )
 
 
@@ -143,15 +148,50 @@ def update_alert(
     return _build_alert_detail(alert)
 
 
+@router.post(
+    "/sessions/{session_id}/terminate",
+    response_model=TerminateSessionResult,
+    dependencies=[Depends(require_permission("dashboard", "write"))],
+)
+def terminate_session(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(UserSession).filter(UserSession.session_id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    was_active = session.logout_time is None
+    session.terminated = True
+    if was_active:
+        session.logout_time = datetime.utcnow()
+        session.session_duration = (session.logout_time - session.login_time).total_seconds()
+
+    db.commit()
+    db.refresh(session)
+
+    # If terminating an active session just closed it for the first time,
+    # this is a genuine close event — score it like any other logout.
+    if was_active:
+        try:
+            anomaly_service.score_session(db, session.session_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Anomaly scoring failed for forcibly-terminated session_id=%s", session.session_id
+            )
+
+    return TerminateSessionResult(
+        session_id=session.session_id,
+        terminated=True,
+        logout_time=session.logout_time,
+        session_duration=session.session_duration,
+    )
+
+
 @router.get(
     "/sessions",
     response_model=List[SessionOut],
     dependencies=[Depends(require_permission("dashboard", "read"))],
 )
-def list_sessions(
-    active_only: bool = Query(False),
-    db: Session = Depends(get_db),
-):
+def list_sessions(active_only: bool = Query(False), db: Session = Depends(get_db)):
     query = db.query(UserSession)
     if active_only:
         query = query.filter(UserSession.logout_time.is_(None))
@@ -167,6 +207,7 @@ def list_sessions(
             session_duration=s.session_duration,
             access_location=s.access_location,
             is_active=s.logout_time is None,
+            terminated=s.terminated,
         )
         for s in sessions
     ]

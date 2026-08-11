@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.models.session import UserSession
 from app.services import session_service
 
-bearer_scheme = HTTPBearer() #changed for checking isolation forest anomaly score for session access logs
+bearer_scheme = HTTPBearer()
 
 
 def get_current_user_and_session(
@@ -32,6 +33,15 @@ def get_current_user_and_session(
     user = db.query(User).filter(User.user_id == int(user_id)).first()
     if user is None:
         raise credentials_exception
+
+    session = db.query(UserSession).filter(UserSession.session_id == int(session_id)).first()
+    if session is not None and session.terminated:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been terminated by an administrator",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user, int(session_id)
 
 
