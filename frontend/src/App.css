@@ -201,3 +201,50 @@ textarea {
   padding: 0;
   font-size: 0.9rem;
 }
+.session-status { margin: 1rem 0; }
+
+.danger-btn {
+  border: none;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.danger-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.badge-danger {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.shap-list { margin: 0.75rem 0 1.5rem; }
+
+.shap-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 60px;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.shap-label { color: #374151; }
+
+.shap-bar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.shap-bar { height: 100%; }
+.shap-positive { background: #dc2626; }
+.shap-negative { background: #2563eb; }
+
+.shap-value { text-align: right; color: #6b7280; }
