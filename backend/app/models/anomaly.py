@@ -10,9 +10,10 @@ class AnomalyAlert(Base):
 
     alert_id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.session_id"), nullable=False, unique=True)
-    anomaly_score = Column(Float, nullable=False)        # -score_samples(); higher = more anomalous
+    anomaly_score = Column(Float, nullable=False)
     is_anomaly = Column(Boolean, nullable=False, default=False)
-    features_json = Column(Text, nullable=True)          # JSON feature vector used for this score (feeds SHAP later)
+    features_json = Column(Text, nullable=True)
+    shap_values_json = Column(Text, nullable=True)  # top contributing features for this alert
     alert_timestamp = Column(DateTime, default=datetime.utcnow)
     reviewed = Column(Boolean, default=False, nullable=False)
     reviewed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -12,8 +12,9 @@ class UserSession(Base):
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     login_time = Column(DateTime, default=datetime.utcnow)
     logout_time = Column(DateTime, nullable=True)
-    session_duration = Column(Float, nullable=True)  # seconds, filled in on logout
-    access_location = Column(String(100), nullable=True)  # client IP for now
+    session_duration = Column(Float, nullable=True)
+    access_location = Column(String(100), nullable=True)
+    terminated = Column(Boolean, nullable=False, default=False)  # admin-forced termination
 
     user = relationship("User", back_populates="sessions")
     access_logs = relationship("AccessLog", back_populates="session")
