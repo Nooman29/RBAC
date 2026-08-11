@@ -7,6 +7,7 @@ import AlertDetail from "./pages/AlertDetail";
 import Users from "./pages/Users";
 import Roles from "./pages/Roles";
 import RoleDetail from "./pages/RoleDetail";
+import Sessions from "./pages/Sessions";
 import "./App.css";
 
 function ProtectedRoute({ children }) {
@@ -29,12 +30,11 @@ function Layout({ children }) {
       <nav className="navbar">
         <span className="brand">RBAC Admin</span>
         <Link to="/">Dashboard</Link>
+        <Link to="/sessions">Sessions</Link>
         <Link to="/alerts">Alerts</Link>
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
-        <button className="logout-btn" onClick={handleLogout}>
-          Logout
-        </button>
+        <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </nav>
       <main className="content">{children}</main>
     </div>
@@ -55,6 +55,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Wrapped><Dashboard /></Wrapped>} />
+        <Route path="/sessions" element={<Wrapped><Sessions /></Wrapped>} />
         <Route path="/alerts" element={<Wrapped><Alerts /></Wrapped>} />
         <Route path="/alerts/:alertId" element={<Wrapped><AlertDetail /></Wrapped>} />
         <Route path="/users" element={<Wrapped><Users /></Wrapped>} />
