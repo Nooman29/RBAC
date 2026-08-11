@@ -8,6 +8,7 @@ import Users from "./pages/Users";
 import Roles from "./pages/Roles";
 import RoleDetail from "./pages/RoleDetail";
 import Sessions from "./pages/Sessions";
+import AuditLog from "./pages/AuditLog";
 import "./App.css";
 
 function ProtectedRoute({ children }) {
@@ -34,6 +35,7 @@ function Layout({ children }) {
         <Link to="/alerts">Alerts</Link>
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
+        <Link to="/audit-log">Audit Log</Link>
         <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </nav>
       <main className="content">{children}</main>
@@ -61,6 +63,7 @@ function App() {
         <Route path="/users" element={<Wrapped><Users /></Wrapped>} />
         <Route path="/roles" element={<Wrapped><Roles /></Wrapped>} />
         <Route path="/roles/:roleId" element={<Wrapped><RoleDetail /></Wrapped>} />
+        <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
       </Routes>
     </AuthProvider>
   );
