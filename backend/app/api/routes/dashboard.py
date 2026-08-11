@@ -2,6 +2,12 @@ import json
 from datetime import datetime
 from typing import List
 
+import csv
+import io
+from typing import Optional
+from fastapi.responses import StreamingResponse
+from app.models.session import AccessLog
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -211,3 +217,48 @@ def list_sessions(active_only: bool = Query(False), db: Session = Depends(get_db
         )
         for s in sessions
     ]
+
+@router.get(
+    "/audit-log/export",
+    dependencies=[Depends(require_permission("dashboard", "read"))],
+)
+def export_audit_log(
+    start_date: Optional[datetime] = Query(None, description="ISO date, e.g. 2026-08-01"),
+    end_date: Optional[datetime] = Query(None, description="ISO date, e.g. 2026-08-31"),
+    user_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(AccessLog)
+        .join(UserSession, AccessLog.session_id == UserSession.session_id)
+    )
+    if start_date:
+        query = query.filter(AccessLog.access_timestamp >= start_date)
+    if end_date:
+        query = query.filter(AccessLog.access_timestamp <= end_date)
+    if user_id:
+        query = query.filter(UserSession.user_id == user_id)
+
+    logs = query.order_by(AccessLog.access_timestamp.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["log_id", "timestamp", "username", "session_id", "resource_name", "action_performed"])
+    for log in logs:
+        session = log.session
+        user = session.user if session else None
+        writer.writerow([
+            log.log_id,
+            log.access_timestamp.isoformat(),
+            user.username if user else "unknown",
+            log.session_id,
+            log.resource_name,
+            log.action_performed,
+        ])
+
+    filename = f"audit_log_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
