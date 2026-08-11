@@ -1,17 +1,15 @@
 """
 Live Isolation Forest scoring service.
 
-Loads the model artifacts produced by scripts/train_isolation_forest.py
-and scores a single closed session, writing an AnomalyAlert row.
+Loads the model artifacts produced by scripts/train_isolation_forest.py,
+scores a single closed session, computes SHAP feature-contribution values
+for that specific prediction, and writes an AnomalyAlert row.
 
-Design notes:
-- This is unsupervised, percentile-thresholded scoring — there is no
-  ground truth for live data (unlike the CERT offline evaluation), so we
-  cannot report a live F1/precision/recall. The threshold is the score
-  percentile chosen at training time.
-- Model artifacts are optional at runtime: if they don't exist yet (model
-  not trained), scoring is skipped rather than raising, so session
-  open/close flows never break because of the ML layer.
+SHAP note: shap.TreeExplainer explains the model's internal path-length
+score, not the exact -score_samples() value we display as anomaly_score.
+The relative RANKING of which features pushed the score toward "anomalous"
+is meaningful and is what we surface; the raw shap numbers should not be
+read as an exact numeric decomposition of anomaly_score.
 """
 
 from __future__ import annotations
@@ -22,6 +20,8 @@ from pathlib import Path
 from typing import Optional
 
 import joblib
+import numpy as np
+import shap
 from sqlalchemy.orm import Session as DBSession
 
 from app.core.config import settings
@@ -34,18 +34,18 @@ logger = logging.getLogger(__name__)
 _model = None
 _scaler = None
 _threshold: Optional[float] = None
+_explainer = None
 _load_attempted = False
+
+TOP_N_CONTRIBUTIONS = 6
 
 
 def _load_artifacts() -> bool:
-    """Lazy-load model/scaler/threshold once per process. True if available."""
-    global _model, _scaler, _threshold, _load_attempted
+    global _model, _scaler, _threshold, _explainer, _load_attempted
 
     if _model is not None:
         return True
     if _load_attempted:
-        # Already tried and failed this process lifetime — don't hit the
-        # filesystem again on every single session close.
         return False
     _load_attempted = True
 
@@ -64,16 +64,40 @@ def _load_artifacts() -> bool:
     _model = joblib.load(model_path)
     _scaler = joblib.load(scaler_path)
     _threshold = json.loads(threshold_path.read_text())["threshold"]
+    try:
+        _explainer = shap.TreeExplainer(_model)
+    except Exception:
+        logger.exception("Failed to build SHAP explainer — alerts will save without explanations.")
+        _explainer = None
     logger.info("Isolation Forest artifacts loaded. threshold=%.4f", _threshold)
     return True
 
 
+def _compute_shap_contributions(scaled_row: np.ndarray) -> Optional[list]:
+    if _explainer is None:
+        return None
+    try:
+        sv = _explainer.shap_values(scaled_row)
+        if isinstance(sv, list):
+            sv = sv[0]
+        row = np.array(sv)[0]
+    except Exception:
+        logger.exception("SHAP computation failed for this session — continuing without it.")
+        return None
+
+    contributions = [
+        {
+            "feature": FEATURE_COLUMNS[i],
+            # Negated to match anomaly_score's convention (higher = more anomalous)
+            "shap_value": float(-row[i]),
+        }
+        for i in range(len(FEATURE_COLUMNS))
+    ]
+    contributions.sort(key=lambda c: abs(c["shap_value"]), reverse=True)
+    return contributions[:TOP_N_CONTRIBUTIONS]
+
+
 def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
-    """
-    Score a single closed session and persist an AnomalyAlert.
-    Returns the AnomalyAlert, or None if scoring was skipped (model not
-    trained yet, session not found, or session not yet closed).
-    """
     if not _load_artifacts():
         return None
 
@@ -81,25 +105,27 @@ def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
         db.query(UserSession).filter(UserSession.session_id == session_id).first()
     )
     if session is None or session.session_duration is None:
-        return None  # must be closed (logout_time set) to have full features
+        return None
 
     existing = db.query(AnomalyAlert).filter(AnomalyAlert.session_id == session_id).first()
     if existing:
-        return existing  # don't double-score
+        return existing
 
     features = build_session_feature_vector(db, session)
     ordered_values = [[features[col] for col in FEATURE_COLUMNS]]
 
     scaled = _scaler.transform(ordered_values)
-    # -score_samples: higher = more anomalous, matching the notebook's convention
     raw_score = float(-_model.score_samples(scaled)[0])
     is_anomaly = bool(raw_score >= _threshold)
+
+    contributions = _compute_shap_contributions(scaled)
 
     alert = AnomalyAlert(
         session_id=session_id,
         anomaly_score=raw_score,
         is_anomaly=is_anomaly,
         features_json=json.dumps(features),
+        shap_values_json=json.dumps(contributions) if contributions is not None else None,
     )
     db.add(alert)
     db.commit()
