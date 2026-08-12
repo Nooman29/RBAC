@@ -11,6 +11,9 @@ from app.models.session import AccessLog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from datetime import timedelta
+from collections import defaultdict
+
 from app.db.database import get_db
 from app.core.rbac import require_permission
 from app.models.session import UserSession
@@ -46,13 +49,54 @@ def get_summary(db: Session = Depends(get_db)):
         .filter(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= today_start)
         .count()
     )
-
     return DashboardSummary(
         active_sessions=active_sessions,
         total_users=total_users,
         roles_configured=roles_configured,
         alerts_today=alerts_today,
     )
+@router.get(
+    "/charts/alerts-over-time",
+    dependencies=[Depends(require_permission("dashboard", "read"))],
+)
+def alerts_over_time(days: int = Query(14, ge=1, le=90), db: Session = Depends(get_db)):
+    start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    alerts = (
+        db.query(AnomalyAlert)
+        .filter(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= start)
+        .all()
+    )
+    counts = defaultdict(int)
+    for a in alerts:
+        counts[a.alert_timestamp.date().isoformat()] += 1
+
+    return [
+        {"date": (start + timedelta(days=i)).date().isoformat(),
+         "alerts": counts.get((start + timedelta(days=i)).date().isoformat(), 0)}
+        for i in range(days)
+    ]
+
+
+@router.get(
+    "/charts/session-activity",
+    dependencies=[Depends(require_permission("dashboard", "read"))],
+)
+def session_activity(days: int = Query(14, ge=1, le=90), db: Session = Depends(get_db)):
+    start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    sessions = db.query(UserSession).filter(UserSession.login_time >= start).all()
+    counts = defaultdict(int)
+    for s in sessions:
+        counts[s.login_time.date().isoformat()] += 1
+
+    return [
+        {"date": (start + timedelta(days=i)).date().isoformat(),
+         "sessions": counts.get((start + timedelta(days=i)).date().isoformat(), 0)}
+        for i in range(days)
+    ]
 
 
 @router.get(

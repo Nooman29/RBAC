@@ -11,7 +11,7 @@ The relative RANKING of which features pushed the score toward "anomalous"
 is meaningful and is what we surface; the raw shap numbers should not be
 read as an exact numeric decomposition of anomaly_score.
 """
-
+from app.services import notification_service
 from __future__ import annotations
 
 import json
@@ -136,5 +136,9 @@ def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
             "Anomaly flagged: session_id=%s user_id=%s score=%.4f (threshold=%.4f)",
             session_id, session.user_id, raw_score, _threshold,
         )
+        try:
+            notification_service.notify_admins_of_anomaly(db, alert)
+        except Exception:
+            logger.exception("Failed to notify admins for alert_id=%s", alert.alert_id)
 
     return alert

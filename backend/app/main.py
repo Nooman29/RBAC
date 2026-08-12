@@ -7,6 +7,7 @@ from app.db.database import get_db, Base, engine
 from app import models
 from app.api.routes import users, roles, auth, dashboard
 from app.models import anomaly
+from app.api.routes import notifications
 
 app = FastAPI()
 
@@ -22,6 +23,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(roles.router)
 app.include_router(dashboard.router)
+app.include_router(notifications.router)
 
 
 @app.get("/health")

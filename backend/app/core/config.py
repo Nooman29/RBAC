@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ISOLATION_FOREST_SCALER_PATH: str = "app/ml/models/scaler.joblib"
     ISOLATION_FOREST_THRESHOLD_PATH: str = "app/ml/models/threshold.json"
 
+     # Frontend base URL, used to build links in alert emails
+    FRONTEND_URL: str = "http://localhost"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
