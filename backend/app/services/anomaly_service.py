@@ -11,7 +11,6 @@ The relative RANKING of which features pushed the score toward "anomalous"
 is meaningful and is what we surface; the raw shap numbers should not be
 read as an exact numeric decomposition of anomaly_score.
 """
-from app.services import notification_service
 from __future__ import annotations
 
 import json
@@ -28,6 +27,7 @@ from app.core.config import settings
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
 from app.models.session import UserSession
 from app.models.anomaly import AnomalyAlert
+from app.services import notification_service
 
 logger = logging.getLogger(__name__)
 

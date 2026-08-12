@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import client from "../api/client";
+import {
+  ResponsiveContainer, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+} from "recharts";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
+  const [alertsData, setAlertsData] = useState([]);
+  const [sessionData, setSessionData] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -10,6 +16,16 @@ export default function Dashboard() {
       .get("/api/dashboard/summary")
       .then((res) => setSummary(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load summary"));
+
+    client
+      .get("/api/dashboard/charts/alerts-over-time?days=14")
+      .then((res) => setAlertsData(res.data))
+      .catch(() => {});
+
+    client
+      .get("/api/dashboard/charts/session-activity?days=14")
+      .then((res) => setSessionData(res.data))
+      .catch(() => {});
   }, []);
 
   if (error) return <p className="error">{error}</p>;
@@ -34,6 +50,34 @@ export default function Dashboard() {
         <div className="stat-card highlight">
           <span className="stat-value">{summary.alerts_today}</span>
           <span className="stat-label">Alerts Today</span>
+        </div>
+      </div>
+
+      <div className="chart-grid">
+        <div className="chart-card">
+          <h3>Alerts (last 14 days)</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={alertsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Line type="monotone" dataKey="alerts" stroke="#d9534f" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-card">
+          <h3>Session Activity (last 14 days)</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={sessionData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="sessions" fill="#5b8def" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import RoleDetail from "./pages/RoleDetail";
 import Sessions from "./pages/Sessions";
 import AuditLog from "./pages/AuditLog";
 import "./App.css";
+import NotificationBell from "./components/NotificationBell";
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
@@ -36,6 +37,7 @@ function Layout({ children }) {
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
         <Link to="/audit-log">Audit Log</Link>
+        <NotificationBell />
         <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </nav>
       <main className="content">{children}</main>
