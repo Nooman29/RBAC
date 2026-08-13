@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.core.rbac import get_current_user_and_session
 from app.services import session_service, biometric_service, otp_service
+from app.schemas.user import UserOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -46,6 +47,11 @@ def _issue_full_login(db: Session, request: Request, user: User) -> Token:
     session = session_service.create_session(db, user_id=user.user_id, access_location=client_host)
     token = create_access_token({"sub": str(user.user_id), "sid": session.session_id})
     return Token(access_token=token)
+
+@router.get("/me", response_model=UserOut)
+def get_me(current=Depends(get_current_user_and_session)):
+    user, _ = current
+    return user
 
 
 @router.post("/login")

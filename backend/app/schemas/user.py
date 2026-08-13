@@ -20,6 +20,7 @@ class UserOut(BaseModel):
     email: EmailStr
     created_at: datetime
     roles: List[RoleOut] = []
+    is_biometric_enrolled: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class Token(BaseModel):
