@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import FaceCapture from "../components/FaceCapture";
 
 export default function Login() {
-  const { loginWithPassword, requestOtp, verifyOtp } = useAuth();
+  const { loginWithPassword, requestOtp, verifyOtp, verifyFace } = useAuth();
   const navigate = useNavigate();
 
-  const [stage, setStage] = useState("password"); // "password" | "otp"
+  // "password" | "choose_method" | "face" | "otp"
+  const [stage, setStage] = useState("password");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [pendingToken, setPendingToken] = useState(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [faceBusy, setFaceBusy] = useState(false);
 
   async function handlePasswordSubmit(e) {
     e.preventDefault();
@@ -24,11 +27,38 @@ export default function Login() {
         return;
       }
       setPendingToken(result.pendingToken);
-      await requestOtp(result.pendingToken);
+      setStage("choose_method");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Login failed");
+    }
+  }
+
+  async function handleChooseFace() {
+    setError("");
+    setStage("face");
+  }
+
+  async function handleChooseOtp() {
+    setError("");
+    try {
+      await requestOtp(pendingToken);
       setInfo("Code sent — check your email.");
       setStage("otp");
     } catch (err) {
-      setError(err.response?.data?.detail || "Login failed");
+      setError("Failed to send code");
+    }
+  }
+
+  async function handleFaceCapture(imageBase64) {
+    setError("");
+    setFaceBusy(true);
+    try {
+      await verifyFace(pendingToken, imageBase64);
+      navigate("/");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Face verification failed. Try again or use email code.");
+    } finally {
+      setFaceBusy(false);
     }
   }
 
@@ -75,6 +105,30 @@ export default function Login() {
           </form>
         )}
 
+        {stage === "choose_method" && (
+          <div>
+            <p>Choose a verification method:</p>
+            {error && <p className="error">{error}</p>}
+            <button type="button" onClick={handleChooseFace}>
+              Verify with Face ID
+            </button>
+            <button type="button" className="secondary" onClick={handleChooseOtp}>
+              Verify with Email Code
+            </button>
+          </div>
+        )}
+
+        {stage === "face" && (
+          <div>
+            <p>Look at the camera and capture your face.</p>
+            {error && <p className="error">{error}</p>}
+            <FaceCapture onCapture={handleFaceCapture} onCancel={() => setStage("choose_method")} busy={faceBusy} />
+            <button type="button" className="link-btn" onClick={handleChooseOtp}>
+              Use email code instead
+            </button>
+          </div>
+        )}
+
         {stage === "otp" && (
           <form onSubmit={handleOtpSubmit}>
             <p>Enter the 6-digit code sent to your email.</p>
@@ -85,6 +139,9 @@ export default function Login() {
             <button type="submit">Verify</button>
             <button type="button" className="secondary" onClick={handleResend}>
               Resend code
+            </button>
+            <button type="button" className="link-btn" onClick={() => setStage("choose_method")}>
+              Use Face ID instead
             </button>
           </form>
         )}

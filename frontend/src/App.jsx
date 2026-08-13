@@ -11,6 +11,9 @@ import Sessions from "./pages/Sessions";
 import AuditLog from "./pages/AuditLog";
 import "./App.css";
 import NotificationBell from "./components/NotificationBell";
+import FaceEnroll from "./pages/FaceEnroll";
+import RoleComparison from "./pages/RoleComparison";
+import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
@@ -29,6 +32,7 @@ function Layout({ children }) {
 
   return (
     <div className="app-shell">
+      <PermissionDeniedBanner />
       <nav className="navbar">
         <span className="brand">RBAC Admin</span>
         <Link to="/">Dashboard</Link>
@@ -36,7 +40,9 @@ function Layout({ children }) {
         <Link to="/alerts">Alerts</Link>
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
+        <Link to="/roles-comparison">Compare Roles</Link>
         <Link to="/audit-log">Audit Log</Link>
+        <Link to="/face-id-setup">Face ID Setup</Link>
         <NotificationBell />
         <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </nav>
@@ -66,6 +72,8 @@ function App() {
         <Route path="/roles" element={<Wrapped><Roles /></Wrapped>} />
         <Route path="/roles/:roleId" element={<Wrapped><RoleDetail /></Wrapped>} />
         <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
+        <Route path="/roles-comparison" element={<Wrapped><RoleComparison /></Wrapped>} />
+        <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />
       </Routes>
     </AuthProvider>
   );

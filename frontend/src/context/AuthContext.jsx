@@ -39,6 +39,20 @@ export function AuthProvider({ children }) {
     localStorage.setItem("access_token", res.data.access_token);
   }
 
+  async function verifyFace(pendingToken, imageBase64) {
+    const res = await client.post("/api/auth/verify-face", {
+      pending_token: pendingToken,
+      image_base64: imageBase64,
+    });
+    setToken(res.data.access_token);
+    localStorage.setItem("access_token", res.data.access_token);
+  }
+
+  async function fetchMe() {
+    const res = await client.get("/api/auth/me");
+    return res.data;
+  }
+
   async function logout() {
     try {
       await client.post("/api/auth/logout");
@@ -49,9 +63,9 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("access_token");
   }
 
-  return (
+   return (
     <AuthContext.Provider
-      value={{ token, loginWithPassword, requestOtp, verifyOtp, logout }}
+      value={{ token, loginWithPassword, requestOtp, verifyOtp, verifyFace, fetchMe, logout }}
     >
       {children}
     </AuthContext.Provider>
