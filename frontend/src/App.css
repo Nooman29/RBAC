@@ -332,3 +332,6 @@ textarea {
 .role-summary-card ul { margin: 6px 0 0 0; padding-left: 18px; }
 
 .link-btn { background: none; border: none; color: #5b8def; cursor: pointer; text-decoration: underline; padding: 0; margin-top: 8px; }
+
+.self-badge { background: #5b8def; color: white; margin-left: 6px; font-size: 0.7rem; }
+.link-btn.danger { color: #d9534f; }
