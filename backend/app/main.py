@@ -9,7 +9,25 @@ from app.api.routes import users, roles, auth, dashboard
 from app.models import anomaly
 from app.api.routes import notifications
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
 app = FastAPI()
+
+@app.on_event("startup")
+def preload_biometric_models():
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from deepface.models.spoofing.FasNet import Fasnet
+        Fasnet()
+        logger.info("Anti-spoofing model preloaded successfully.")
+    except Exception:
+        logger.exception("Anti-spoofing model failed to preload at startup.")
 
 app.add_middleware(
     CORSMiddleware,

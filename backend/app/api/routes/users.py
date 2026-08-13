@@ -2,6 +2,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+import secrets
+from datetime import datetime, timedelta, timezone
+from app.services import welcome_email_service
+
 from app.db.database import get_db
 from app.core.security import hash_password
 from app.models.user import User
@@ -9,6 +13,11 @@ from app.models.role import Role
 from app.schemas.user import UserCreate, UserOut
 from app.core.rbac import require_permission
 from app.services import rbac_service
+from app.models.session import UserSession, AccessLog
+from app.models.anomaly import AnomalyAlert
+from app.models.notification import Notification
+from app.models.otp import OTPCode
+from app.models.biometric import BiometricEnrollment
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -39,15 +48,27 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return user
 
 
+SETUP_TOKEN_EXPIRE_HOURS = 48
+
+
 @router.post("/", response_model=UserOut, dependencies=[Depends(require_permission("user", "write"))])
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
+    if db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(status_code=400, detail="Email already in use")
+
+    setup_token = secrets.token_urlsafe(32)
+    placeholder_password = hash_password(secrets.token_urlsafe(32))  # unusable, never shared
 
     user = User(
         username=payload.username,
-        password=hash_password(payload.password),
         email=payload.email,
+        password=placeholder_password,
+        password_set=False,
+        password_setup_token=setup_token,
+        password_setup_expires=datetime.now(timezone.utc) + timedelta(hours=SETUP_TOKEN_EXPIRE_HOURS),
+        biometric_choice_made=False,
     )
     if payload.role_ids:
         user.roles = db.query(Role).filter(Role.role_id.in_(payload.role_ids)).all()
@@ -55,8 +76,37 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    sent = welcome_email_service.send_welcome_email(user, setup_token)
+    if not sent:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Welcome email failed to send for user_id=%s — share the setup link manually.", user.user_id
+        )
+
     return user
 
+SETUP_TOKEN_EXPIRE_HOURS = 48
+@router.post(
+    "/{user_id}/resend-setup-email",
+    dependencies=[Depends(require_permission("user", "write"))],
+)
+def resend_setup_email(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.password_set:
+        raise HTTPException(status_code=400, detail="User has already completed account setup.")
+
+    setup_token = secrets.token_urlsafe(32)
+    user.password_setup_token = setup_token
+    user.password_setup_expires = datetime.now(timezone.utc) + timedelta(hours=SETUP_TOKEN_EXPIRE_HOURS)
+    db.commit()
+
+    sent = welcome_email_service.send_welcome_email(user, setup_token)
+    if not sent:
+        raise HTTPException(status_code=500, detail="Failed to send setup email.")
+    return {"detail": "Setup email resent."}
 
 @router.delete("/{user_id}")
 def delete_user(
@@ -80,8 +130,39 @@ def delete_user(
             detail="Cannot delete the last remaining Administrator — this would lock everyone out.",
         )
 
-    db.delete(user)
-    db.commit()
+    try:
+        session_ids = [
+            s.session_id for s in db.query(UserSession.session_id).filter(UserSession.user_id == user.user_id).all()
+        ]
+
+        if session_ids:
+            alert_ids = [
+                a.alert_id for a in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(session_ids)).all()
+            ]
+            if alert_ids:
+                # Notifications from OTHER admins may point at these alerts — clean those up too,
+                # not just this user's own notifications, or the alert delete below will fail.
+                db.query(Notification).filter(Notification.alert_id.in_(alert_ids)).delete(synchronize_session=False)
+                db.query(AnomalyAlert).filter(AnomalyAlert.alert_id.in_(alert_ids)).delete(synchronize_session=False)
+
+            db.query(AccessLog).filter(AccessLog.session_id.in_(session_ids)).delete(synchronize_session=False)
+            db.query(UserSession).filter(UserSession.session_id.in_(session_ids)).delete(synchronize_session=False)
+
+        # If this user reviewed alerts belonging to OTHER users' sessions, don't leave a dangling FK
+        db.query(AnomalyAlert).filter(AnomalyAlert.reviewed_by == user.user_id).update(
+            {"reviewed_by": None}, synchronize_session=False
+        )
+
+        db.query(Notification).filter(Notification.user_id == user.user_id).delete(synchronize_session=False)
+        db.query(OTPCode).filter(OTPCode.user_id == user.user_id).delete(synchronize_session=False)
+        db.query(BiometricEnrollment).filter(BiometricEnrollment.user_id == user.user_id).delete(synchronize_session=False)
+
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete user due to related data. Check server logs.")
+
     return {"detail": f"User '{user.username}' deleted"}
 
 

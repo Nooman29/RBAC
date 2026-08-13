@@ -10,7 +10,6 @@ class RoleOut(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    password: str
     email: EmailStr
     role_ids: List[int] = []
 
@@ -21,6 +20,7 @@ class UserOut(BaseModel):
     created_at: datetime
     roles: List[RoleOut] = []
     is_biometric_enrolled: bool = False
+    password_set: bool = True
     model_config = ConfigDict(from_attributes=True)
 
 class Token(BaseModel):
@@ -37,7 +37,6 @@ class PermissionOut(BaseModel):
     action_type: str
     description: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
-
 
 class RoleDetail(RoleOut):
     permissions: List[PermissionOut] = []

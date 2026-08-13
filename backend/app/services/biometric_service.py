@@ -26,9 +26,8 @@ def decode_base64_image(image_b64: str):
 
 def check_liveness(frame) -> bool:
     """
-    Runs DeepFace's built-in anti-spoofing model (MiniFASNet) on the frame.
-    Returns True only if the detected face is classified as real/live.
-    A printed photo or a phone/screen held up to the camera should fail this.
+    Runs DeepFace's built-in anti-spoofing model (MiniFASNet, PyTorch-based)
+    on the frame. Returns True only if the detected face is classified as real/live.
     """
     try:
         faces = DeepFace.extract_faces(
@@ -38,14 +37,19 @@ def check_liveness(frame) -> bool:
             anti_spoofing=True,
         )
         if not faces:
+            logger.warning("Biometric: extract_faces returned empty list during liveness check")
             return False
-        # extract_faces returns a list of dicts; each has "is_real" when anti_spoofing=True
-        return bool(faces[0].get("is_real", False))
-    except ValueError:
-        logger.info("Biometric: no face detected during liveness check")
+        face_obj = faces[0]
+        logger.info(
+            "Biometric: liveness is_real=%s antispoof_score=%s",
+            face_obj.get("is_real"), face_obj.get("antispoof_score"),
+        )
+        return bool(face_obj.get("is_real", False))
+    except ValueError as e:
+        logger.warning("Biometric: liveness ValueError (detector rejected frame): %s", str(e))
         return False
-    except Exception:
-        logger.exception("Biometric: liveness check failed unexpectedly")
+    except Exception as e:
+        logger.exception("Biometric: liveness check failed unexpectedly: %s", str(e))
         return False
 
 
@@ -79,20 +83,17 @@ def cosine_distance(a, b):
     return 1 - (np.dot(a, b) / denom)
 
 
-def enroll_face(db: Session, user_id: int, image_b64: str) -> bool:
+def enroll_face(db: Session, user_id: int, image_b64: str) -> tuple[bool, str]:
     frame = decode_base64_image(image_b64)
     if frame is None:
-        return False
+        return False, "Could not read the captured image."
 
-    # Require liveness at enrollment too — otherwise someone could enroll
-    # a photo of another person and later "verify" with that same photo.
     if not check_liveness(frame):
-        logger.info("Biometric: enrollment rejected — liveness check failed for user_id=%s", user_id)
-        return False
+        return False, "Liveness check failed — make sure your face is well-lit and clearly visible, not a photo or video."
 
     embedding = extract_embedding(image_b64)
     if embedding is None:
-        return False
+        return False, "No face detected in the frame."
 
     existing = db.query(BiometricEnrollment).filter_by(user_id=user_id).first()
     if existing:
@@ -107,7 +108,7 @@ def enroll_face(db: Session, user_id: int, image_b64: str) -> bool:
 
     db.commit()
     logger.info("Biometric: enrollment saved for user_id=%s", user_id)
-    return True
+    return True, "Enrolled successfully."
 
 
 def verify_face(db: Session, user_id: int, image_b64: str) -> bool:
