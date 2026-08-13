@@ -335,3 +335,5 @@ textarea {
 
 .self-badge { background: #5b8def; color: white; margin-left: 6px; font-size: 0.7rem; }
 .link-btn.danger { color: #d9534f; }
+.status-active { color: #2e7d32; font-weight: 600; }
+.status-pending { color: #b26a00; font-weight: 600; margin-right: 6px; }

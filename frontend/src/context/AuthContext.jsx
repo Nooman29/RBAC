@@ -15,15 +15,15 @@ export function AuthProvider({ children }) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
 
-    // First-time users with no biometric enrolled get a real token directly
-    if (res.data.access_token) {
-      setToken(res.data.access_token);
-      localStorage.setItem("access_token", res.data.access_token);
-      return { status: "logged_in" };
+    if (res.data.status === "first_time_setup_required") {
+      return { status: "first_time_setup_required", pendingToken: res.data.pending_token };
     }
 
-    // Otherwise it's the 2FA path
-    return { status: "2fa_required", pendingToken: res.data.pending_token };
+    return {
+      status: "2fa_required",
+      pendingToken: res.data.pending_token,
+      hasFaceOption: res.data.has_face_option,
+    };
   }
 
   async function requestOtp(pendingToken) {
@@ -48,6 +48,31 @@ export function AuthProvider({ children }) {
     localStorage.setItem("access_token", res.data.access_token);
   }
 
+  async function setupPassword(setupToken, newPassword) {
+    const res = await client.post("/api/auth/setup-password", {
+      token: setupToken,
+      new_password: newPassword,
+    });
+    return res.data.pending_token; // caller routes into first-time-setup with this
+  }
+
+  async function completeBiometricSetup(pendingToken, imageBase64) {
+    const res = await client.post("/api/auth/complete-biometric-setup", {
+      pending_token: pendingToken,
+      image_base64: imageBase64,
+    });
+    setToken(res.data.access_token);
+    localStorage.setItem("access_token", res.data.access_token);
+  }
+
+  async function skipBiometricSetup(pendingToken) {
+    const res = await client.post("/api/auth/skip-biometric-setup", {
+      pending_token: pendingToken,
+    });
+    setToken(res.data.access_token);
+    localStorage.setItem("access_token", res.data.access_token);
+  }
+
   async function fetchMe() {
     const res = await client.get("/api/auth/me");
     return res.data;
@@ -56,16 +81,25 @@ export function AuthProvider({ children }) {
   async function logout() {
     try {
       await client.post("/api/auth/logout");
-    } catch (e) {
-      // even if this fails, clear local state so the user isn't stuck
-    }
+    } catch (e) {}
     setToken(null);
     localStorage.removeItem("access_token");
   }
 
-   return (
+  return (
     <AuthContext.Provider
-      value={{ token, loginWithPassword, requestOtp, verifyOtp, verifyFace, fetchMe, logout }}
+      value={{
+        token,
+        loginWithPassword,
+        requestOtp,
+        verifyOtp,
+        verifyFace,
+        setupPassword,
+        completeBiometricSetup,
+        skipBiometricSetup,
+        fetchMe,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -14,6 +14,8 @@ import NotificationBell from "./components/NotificationBell";
 import FaceEnroll from "./pages/FaceEnroll";
 import RoleComparison from "./pages/RoleComparison";
 import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
+import SetupPassword from "./pages/SetupPassword";
+import FirstTimeSetup from "./pages/FirstTimeSetup";
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
@@ -74,6 +76,8 @@ function App() {
         <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
         <Route path="/roles-comparison" element={<Wrapped><RoleComparison /></Wrapped>} />
         <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />
+        <Route path="/setup-password" element={<SetupPassword />} />
+        <Route path="/first-time-setup" element={<FirstTimeSetup />} />
       </Routes>
     </AuthProvider>
   );

@@ -6,7 +6,8 @@ export default function Users() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState("");
-  const [newUser, setNewUser] = useState({ username: "", email: "", password: "" });
+  const [info, setInfo] = useState("");
+  const [newUser, setNewUser] = useState({ username: "", email: "" });
   const [creating, setCreating] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const { fetchMe } = useAuth();
@@ -59,10 +60,12 @@ export default function Users() {
   async function handleCreateUser(e) {
     e.preventDefault();
     setError("");
+    setInfo("");
     setCreating(true);
     try {
       await client.post("/api/users/", { ...newUser, role_ids: [] });
-      setNewUser({ username: "", email: "", password: "" });
+      setNewUser({ username: "", email: "" });
+      setInfo("User created — a setup email has been sent to activate their account.");
       loadUsers();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to create user");
@@ -71,11 +74,20 @@ export default function Users() {
     }
   }
 
+  async function handleResendSetup(userId) {
+    setError("");
+    setInfo("");
+    try {
+      await client.post(`/api/users/${userId}/resend-setup-email`);
+      setInfo("Setup email resent.");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to resend setup email");
+    }
+  }
+
   async function handleDeleteUser(user) {
     setError("");
-    const confirmed = window.confirm(
-      `Delete user '${user.username}'? This cannot be undone.`
-    );
+    const confirmed = window.confirm(`Delete user '${user.username}'? This cannot be undone.`);
     if (!confirmed) return;
     try {
       await client.delete(`/api/users/${user.user_id}`);
@@ -89,9 +101,13 @@ export default function Users() {
     <div>
       <h2>Users</h2>
       {error && <p className="error">{error}</p>}
+      {info && <p className="info">{info}</p>}
 
       <div className="panel">
         <h3>Create user</h3>
+        <p className="muted">
+          The new user will receive an email to set their own password and enroll sign-in verification.
+        </p>
         <form className="inline-form" onSubmit={handleCreateUser}>
           <input
             placeholder="Username"
@@ -106,13 +122,6 @@ export default function Users() {
             onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
             required
           />
-          <input
-            placeholder="Password"
-            type="password"
-            value={newUser.password}
-            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-            required
-          />
           <button type="submit" disabled={creating}>
             {creating ? "Creating…" : "Create"}
           </button>
@@ -124,6 +133,7 @@ export default function Users() {
           <tr>
             <th>Username</th>
             <th>Email</th>
+            <th>Status</th>
             <th>Roles</th>
             <th>Assign role</th>
             <th></th>
@@ -140,6 +150,18 @@ export default function Users() {
                   {isSelf && <span className="badge self-badge">You</span>}
                 </td>
                 <td>{u.email}</td>
+                <td>
+                  {u.password_set ? (
+                    <span className="status-active">Active</span>
+                  ) : (
+                    <>
+                      <span className="status-pending">Setup pending</span>
+                      <button className="link-btn" onClick={() => handleResendSetup(u.user_id)}>
+                        Resend email
+                      </button>
+                    </>
+                  )}
+                </td>
                 <td>
                   {u.roles.length === 0 && <span className="muted">no roles</span>}
                   {u.roles.map((r) => {
@@ -165,13 +187,9 @@ export default function Users() {
                 </td>
                 <td>
                   {isSelf ? (
-                    <span className="muted" title="You cannot delete your own account">
-                      Protected
-                    </span>
+                    <span className="muted">Protected</span>
                   ) : lastAdmin ? (
-                    <span className="muted" title="Cannot delete the last Administrator">
-                      Protected
-                    </span>
+                    <span className="muted">Protected</span>
                   ) : (
                     <button className="link-btn danger" onClick={() => handleDeleteUser(u)}>
                       Delete

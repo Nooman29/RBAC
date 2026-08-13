@@ -13,6 +13,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [pendingToken, setPendingToken] = useState(null);
+  const [hasFaceOption, setHasFaceOption] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [faceBusy, setFaceBusy] = useState(false);
@@ -22,12 +23,23 @@ export default function Login() {
     setError("");
     try {
       const result = await loginWithPassword(username, password);
-      if (result.status === "logged_in") {
-        navigate("/");
+
+      if (result.status === "first_time_setup_required") {
+        navigate("/first-time-setup", { state: { pendingToken: result.pendingToken } });
         return;
       }
+
       setPendingToken(result.pendingToken);
-      setStage("choose_method");
+      setHasFaceOption(result.hasFaceOption);
+
+      if (!result.hasFaceOption) {
+        // Nothing enrolled — go straight to OTP, no dead-end "choose" screen
+        await requestOtp(result.pendingToken);
+        setInfo("Code sent — check your email.");
+        setStage("otp");
+      } else {
+        setStage("choose_method");
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "Login failed");
     }
@@ -109,9 +121,11 @@ export default function Login() {
           <div>
             <p>Choose a verification method:</p>
             {error && <p className="error">{error}</p>}
-            <button type="button" onClick={handleChooseFace}>
-              Verify with Face ID
-            </button>
+            {hasFaceOption && (
+              <button type="button" onClick={handleChooseFace}>
+                Verify with Face ID
+              </button>
+            )}
             <button type="button" className="secondary" onClick={handleChooseOtp}>
               Verify with Email Code
             </button>
@@ -140,9 +154,11 @@ export default function Login() {
             <button type="button" className="secondary" onClick={handleResend}>
               Resend code
             </button>
-            <button type="button" className="link-btn" onClick={() => setStage("choose_method")}>
-              Use Face ID instead
-            </button>
+            {hasFaceOption && (
+              <button type="button" className="link-btn" onClick={() => setStage("choose_method")}>
+                Use Face ID instead
+              </button>
+            )}
           </form>
         )}
       </div>
