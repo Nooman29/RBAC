@@ -65,6 +65,9 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     if payload.department not in DEPARTMENTS:
         raise HTTPException(status_code=400, detail=f"Department must be one of: {', '.join(DEPARTMENTS)}")
 
+    if not payload.role_ids:
+        raise HTTPException(status_code=400, detail="A user must be assigned at least one role.")
+
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
     if db.query(User).filter(User.email == payload.email).first():

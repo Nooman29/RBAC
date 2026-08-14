@@ -360,3 +360,4 @@ textarea {
 .navbar .logout-btn {
   order: 99;
 }
+.badge-warning { background: #fff3cd; color: #856404; }
