@@ -18,6 +18,8 @@ from app.models.anomaly import AnomalyAlert
 from app.models.notification import Notification
 from app.models.otp import OTPCode
 from app.models.biometric import BiometricEnrollment
+from app.core.constants import DEPARTMENTS
+from app.schemas.user import UserCreate, UserOut, UpdateDepartmentRequest
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -35,9 +37,16 @@ def _is_administrator(user: User) -> bool:
     return any(r.role_name == ADMIN_ROLE_NAME for r in user.roles)
 
 
-@router.get("/", response_model=List[UserOut], dependencies=[Depends(require_permission("user", "read"))])
-def list_users(db: Session = Depends(get_db)):
-    return db.query(User).all()
+@router.get("/", response_model=List[UserOut])
+def list_users(
+    current_user: User = Depends(require_permission("user", "read")),
+    db: Session = Depends(get_db),
+):
+    role_names = {r.role_name for r in current_user.roles}
+    query = db.query(User)
+    if "Administrator" not in role_names:
+        query = query.filter(User.department == current_user.department)
+    return query.all()
 
 
 @router.get("/{user_id}", response_model=UserOut, dependencies=[Depends(require_permission("user", "read"))])
@@ -53,17 +62,21 @@ SETUP_TOKEN_EXPIRE_HOURS = 48
 
 @router.post("/", response_model=UserOut, dependencies=[Depends(require_permission("user", "write"))])
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+    if payload.department not in DEPARTMENTS:
+        raise HTTPException(status_code=400, detail=f"Department must be one of: {', '.join(DEPARTMENTS)}")
+
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already in use")
 
     setup_token = secrets.token_urlsafe(32)
-    placeholder_password = hash_password(secrets.token_urlsafe(32))  # unusable, never shared
+    placeholder_password = hash_password(secrets.token_urlsafe(32))
 
     user = User(
         username=payload.username,
         email=payload.email,
+        department=payload.department,
         password=placeholder_password,
         password_set=False,
         password_setup_token=setup_token,
@@ -84,6 +97,23 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
             "Welcome email failed to send for user_id=%s — share the setup link manually.", user.user_id
         )
 
+    return user
+
+
+@router.patch(
+    "/{user_id}/department",
+    response_model=UserOut,
+    dependencies=[Depends(require_permission("user", "write"))],
+)
+def update_department(user_id: int, payload: UpdateDepartmentRequest, db: Session = Depends(get_db)):
+    if payload.department not in DEPARTMENTS:
+        raise HTTPException(status_code=400, detail=f"Department must be one of: {', '.join(DEPARTMENTS)}")
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.department = payload.department
+    db.commit()
+    db.refresh(user)
     return user
 
 SETUP_TOKEN_EXPIRE_HOURS = 48

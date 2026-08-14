@@ -20,6 +20,7 @@ class AnomalyAlertSummary(BaseModel):
     session_id: int
     user_id: int
     username: str
+    department: Optional[str] = None
     anomaly_score: float
     is_anomaly: bool
     alert_timestamp: datetime
@@ -48,6 +49,7 @@ class SessionOut(BaseModel):
     session_id: int
     user_id: int
     username: str
+    department: Optional[str] = None
     login_time: datetime
     logout_time: Optional[datetime] = None
     session_duration: Optional[float] = None

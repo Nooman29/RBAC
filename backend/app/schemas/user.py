@@ -11,6 +11,7 @@ class RoleOut(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
+    department: str
     role_ids: List[int] = []
 
 class UserOut(BaseModel):
@@ -21,7 +22,11 @@ class UserOut(BaseModel):
     roles: List[RoleOut] = []
     is_biometric_enrolled: bool = False
     password_set: bool = True
+    department: str = "Unassigned"
     model_config = ConfigDict(from_attributes=True)
+
+class UpdateDepartmentRequest(BaseModel):
+    department: str
 
 class Token(BaseModel):
     access_token: str

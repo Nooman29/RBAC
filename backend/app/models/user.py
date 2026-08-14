@@ -21,8 +21,9 @@ class User(Base):
     is_biometric_enrolled = Column(Boolean, default=False, nullable=False)
     biometric_enrollment = relationship("BiometricEnrollment", back_populates="user", uselist=False)
 
-    # Forced first-time setup flow
     password_set = Column(Boolean, default=True, nullable=False)
     password_setup_token = Column(String(255), nullable=True, unique=True)
     password_setup_expires = Column(DateTime, nullable=True)
     biometric_choice_made = Column(Boolean, default=True, nullable=False)
+
+    department = Column(String(50), default="Unassigned", nullable=False)
