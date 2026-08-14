@@ -28,6 +28,7 @@ services:
         condition: service_healthy
     volumes:
       - ml_models:/app/app/ml/models
+      - deepface_weights:/root/.deepface
     ports:
       - "8000:8000"
 
@@ -45,3 +46,4 @@ services:
 volumes:
   pgdata:
   ml_models:
+  deepface_weights:
