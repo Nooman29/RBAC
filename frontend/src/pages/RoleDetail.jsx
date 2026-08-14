@@ -2,19 +2,19 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import client from "../api/client";
 
+const RESOURCES = ["dashboard", "role", "user"];
+
 export default function RoleDetail() {
   const { roleId } = useParams();
   const [role, setRole] = useState(null);
-  const [allPermissions, setAllPermissions] = useState([]);
   const [error, setError] = useState("");
-  const [newPerm, setNewPerm] = useState({ resource_name: "", action_type: "read" });
+  const [newPerm, setNewPerm] = useState({ resource_name: RESOURCES[0], action_type: "read" });
 
   function load() {
     client
       .get(`/api/roles/${roleId}`)
       .then((res) => setRole(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load role"));
-    client.get("/api/roles/permissions").then((res) => setAllPermissions(res.data)).catch(() => {});
   }
 
   useEffect(load, [roleId]);
@@ -26,7 +26,7 @@ export default function RoleDetail() {
       await client.post(`/api/roles/${roleId}/permissions`, null, {
         params: { resource_name: newPerm.resource_name, action_type: newPerm.action_type },
       });
-      setNewPerm({ resource_name: "", action_type: "read" });
+      setNewPerm({ resource_name: RESOURCES[0], action_type: "read" });
       load();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to grant permission");
@@ -45,8 +45,6 @@ export default function RoleDetail() {
 
   if (error && !role) return <p className="error">{error}</p>;
   if (!role) return <p>Loading…</p>;
-
-  const existingResources = [...new Set(allPermissions.map((p) => p.resource_name))];
 
   return (
     <div>
@@ -86,18 +84,14 @@ export default function RoleDetail() {
       <div className="panel">
         <h3>Grant permission</h3>
         <form className="inline-form" onSubmit={handleGrant}>
-          <input
-            list="known-resources"
-            placeholder="Resource (e.g. dashboard)"
+          <select
             value={newPerm.resource_name}
             onChange={(e) => setNewPerm({ ...newPerm, resource_name: e.target.value })}
-            required
-          />
-          <datalist id="known-resources">
-            {existingResources.map((r) => (
-              <option key={r} value={r} />
+          >
+            {RESOURCES.map((r) => (
+              <option key={r} value={r}>{r}</option>
             ))}
-          </datalist>
+          </select>
           <select
             value={newPerm.action_type}
             onChange={(e) => setNewPerm({ ...newPerm, action_type: e.target.value })}

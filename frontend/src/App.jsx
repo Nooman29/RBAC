@@ -16,6 +16,9 @@ import RoleComparison from "./pages/RoleComparison";
 import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 import SetupPassword from "./pages/SetupPassword";
 import FirstTimeSetup from "./pages/FirstTimeSetup";
+import useIdleLogout from "./hooks/useIdleLogout";
+
+
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
@@ -26,6 +29,7 @@ function ProtectedRoute({ children }) {
 function Layout({ children }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  useIdleLogout();
 
   async function handleLogout() {
     await logout();

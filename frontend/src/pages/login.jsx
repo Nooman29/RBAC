@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import FaceCapture from "../components/FaceCapture";
+import { useLocation } from "react-router-dom";
 
 export default function Login() {
   const { loginWithPassword, requestOtp, verifyOtp, verifyFace } = useAuth();
@@ -17,6 +18,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [faceBusy, setFaceBusy] = useState(false);
+  const location = useLocation();
+  const idleTimeout = location.state?.idleTimeout;
 
   async function handlePasswordSubmit(e) {
     e.preventDefault();
@@ -100,7 +103,7 @@ export default function Login() {
     <div className="auth-screen">
       <div className="auth-card">
         <h1>RBAC Admin</h1>
-
+        {idleTimeout && <p className="info">You were signed out after 20 minutes of inactivity.</p>}
         {stage === "password" && (
           <form onSubmit={handlePasswordSubmit}>
             <label>Username</label>
