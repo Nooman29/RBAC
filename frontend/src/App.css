@@ -337,3 +337,26 @@ textarea {
 .link-btn.danger { color: #d9534f; }
 .status-active { color: #2e7d32; font-weight: 600; }
 .status-pending { color: #b26a00; font-weight: 600; margin-right: 6px; }
+
+.navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  row-gap: 8px;
+  padding: 10px 16px;
+}
+.navbar .brand {
+  font-weight: 700;
+  margin-right: 8px;
+}
+.navbar a {
+  white-space: nowrap;
+}
+.navbar .notif-bell {
+  margin-left: auto;
+  order: 98;
+}
+.navbar .logout-btn {
+  order: 99;
+}
