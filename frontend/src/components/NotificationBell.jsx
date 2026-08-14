@@ -63,7 +63,7 @@ export default function NotificationBell() {
   return (
     <div className="notif-bell" ref={dropdownRef}>
       <button onClick={toggleOpen} className="bell-btn">
-        🔔 {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
+        🔔 {unreadCount > 0 && <span className="notif-count">{unreadCount}</span>}
       </button>
       {open && (
         <div className="notif-dropdown">

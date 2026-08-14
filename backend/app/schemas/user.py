@@ -45,3 +45,6 @@ class PermissionOut(BaseModel):
 
 class RoleDetail(RoleOut):
     permissions: List[PermissionOut] = []
+
+class SetRoleRequest(BaseModel):
+    role_id: int

@@ -19,7 +19,7 @@ from app.models.notification import Notification
 from app.models.otp import OTPCode
 from app.models.biometric import BiometricEnrollment
 from app.core.constants import DEPARTMENTS
-from app.schemas.user import UserCreate, UserOut, UpdateDepartmentRequest
+from app.schemas.user import UserCreate, UserOut, UpdateDepartmentRequest, SetRoleRequest
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -35,6 +35,41 @@ def _count_administrators(db: Session, exclude_user_id: int = None) -> int:
 
 def _is_administrator(user: User) -> bool:
     return any(r.role_name == ADMIN_ROLE_NAME for r in user.roles)
+
+@router.put("/{user_id}/role", response_model=UserOut)
+def set_user_role(
+    user_id: int,
+    payload: SetRoleRequest,
+    current_user: User = Depends(require_permission("user", "write")),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_role = db.query(Role).filter(Role.role_id == payload.role_id).first()
+    if not new_role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    currently_admin = _is_administrator(user)
+    becoming_admin = new_role.role_name == ADMIN_ROLE_NAME
+
+    if currently_admin and not becoming_admin:
+        if user.user_id == current_user.user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="You cannot remove your own Administrator role while logged in.",
+            )
+        if _count_administrators(db, exclude_user_id=user.user_id) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove the last remaining Administrator role — this would lock everyone out.",
+            )
+
+    user.roles = [new_role]  # single-role model: replaces whatever they had
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.get("/", response_model=List[UserOut])

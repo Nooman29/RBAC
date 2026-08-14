@@ -4,6 +4,11 @@ import client from "../api/client";
 
 const DEPARTMENTS = ["IT", "Finance", "HR", "Operations", "Executive", "Unassigned"];
 
+function roleBadgeClass(roleName) {
+  const slug = roleName.replace(/\s+/g, "-").toLowerCase();
+  return `badge role-badge-${slug}`;
+}
+
 export default function Users() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -25,7 +30,7 @@ export default function Users() {
     client
       .get("/api/roles/")
       .then((res) => setRoles(res.data))
-      .catch((err) => setError(err.response?.data?.detail || "Failed to load roles — role selection may be unavailable."));
+      .catch((err) => setError(err.response?.data?.detail || "Failed to load roles."));
   }
 
   useEffect(() => {
@@ -41,27 +46,6 @@ export default function Users() {
     if (!isAdminUser) return false;
     const adminCount = users.filter((u) => u.roles.some((r) => r.role_name === "Administrator")).length;
     return adminCount <= 1;
-  }
-
-  async function handleAssignRole(userId, roleId) {
-    if (!roleId) return;
-    setError("");
-    try {
-      await client.post(`/api/users/${userId}/roles/${roleId}`);
-      loadUsers();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to assign role");
-    }
-  }
-
-  async function handleRemoveRole(userId, roleId) {
-    setError("");
-    try {
-      await client.delete(`/api/users/${userId}/roles/${roleId}`);
-      loadUsers();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to remove role");
-    }
   }
 
   async function handleCreateUser(e) {
@@ -110,6 +94,17 @@ export default function Users() {
       loadUsers();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to change department");
+    }
+  }
+
+  async function handleChangeRole(userId, roleId) {
+    if (!roleId) return;
+    setError("");
+    try {
+      await client.put(`/api/users/${userId}/role`, { role_id: Number(roleId) });
+      loadUsers();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to change role");
     }
   }
 
@@ -185,8 +180,8 @@ export default function Users() {
             <th>Email</th>
             <th>Department</th>
             <th>Status</th>
-            <th>Roles</th>
-            <th>Assign role</th>
+            <th>Role</th>
+            <th>Change role</th>
             <th></th>
           </tr>
         </thead>
@@ -194,8 +189,7 @@ export default function Users() {
           {users.map((u) => {
             const isSelf = u.user_id === currentUser?.user_id;
             const lastAdmin = isLastAdmin(u);
-            const assignedRoleIds = new Set(u.roles.map((r) => r.role_id));
-            const availableToAssign = roles.filter((r) => !assignedRoleIds.has(r.role_id));
+            const currentRole = u.roles[0];
 
             return (
               <tr key={u.user_id}>
@@ -231,33 +225,22 @@ export default function Users() {
                   )}
                 </td>
                 <td>
-                  {u.roles.length === 0 ? (
-                    <span className="badge badge-warning">No roles assigned</span>
+                  {currentRole ? (
+                    <span className={roleBadgeClass(currentRole.role_name)}>{currentRole.role_name}</span>
                   ) : (
-                    u.roles.map((r) => {
-                      const blockRoleRemoval = r.role_name === "Administrator" && (isSelf || lastAdmin);
-                      return (
-                        <span key={r.role_id} className="badge">
-                          {r.role_name}
-                          {!blockRoleRemoval && (
-                            <button
-                              className="badge-remove"
-                              title={`Remove ${r.role_name}`}
-                              onClick={() => handleRemoveRole(u.user_id, r.role_id)}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </span>
-                      );
-                    })
+                    <span className="badge badge-warning">No role</span>
                   )}
                 </td>
                 <td>
-                  <RoleAssignSelect
-                    roles={availableToAssign}
-                    onAssign={(roleId) => handleAssignRole(u.user_id, roleId)}
-                  />
+                  <select
+                    value={currentRole?.role_id || ""}
+                    onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
+                  >
+                    <option value="" disabled>Select role…</option>
+                    {roles.map((r) => (
+                      <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
+                    ))}
+                  </select>
                 </td>
                 <td>
                   {isSelf ? (
@@ -275,36 +258,6 @@ export default function Users() {
           })}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function RoleAssignSelect({ roles, onAssign }) {
-  const [selected, setSelected] = useState("");
-
-  if (roles.length === 0) {
-    return <span className="muted">All roles assigned</span>;
-  }
-
-  return (
-    <div className="inline-form">
-      <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-        <option value="">Select role…</option>
-        {roles.map((r) => (
-          <option key={r.role_id} value={r.role_id}>
-            {r.role_name}
-          </option>
-        ))}
-      </select>
-      <button
-        onClick={() => {
-          onAssign(selected);
-          setSelected("");
-        }}
-        disabled={!selected}
-      >
-        Add
-      </button>
     </div>
   );
 }
