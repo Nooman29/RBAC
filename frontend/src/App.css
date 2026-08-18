@@ -364,3 +364,4 @@ textarea {
 .role-badge-administrator { background: #d9534f; color: white; }
 .role-badge-manager { background: #f0ad4e; color: white; }
 .role-badge-standard-user { background: #5bc0de; color: white; }
+.preset-row { display: flex; gap: 8px; margin-bottom: 12px; }

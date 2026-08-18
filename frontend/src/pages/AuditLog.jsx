@@ -1,12 +1,34 @@
 import { useState } from "react";
 import client from "../api/client";
 
+function presetRange(days) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+}
+
 export default function AuditLog() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [userId, setUserId] = useState("");
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+
+  function applyPreset(days) {
+    const { startDate: s, endDate: e } = presetRange(days);
+    setStartDate(s);
+    setEndDate(e);
+  }
+
+  function clearFilters() {
+    setStartDate("");
+    setEndDate("");
+    setUserId("");
+  }
 
   async function handleExport() {
     setError("");
@@ -42,6 +64,13 @@ export default function AuditLog() {
       <h2>Audit Log Export</h2>
       <p className="muted">Export access log records as CSV for compliance or review.</p>
       <div className="panel">
+        <div className="preset-row">
+          <button type="button" className="secondary" onClick={() => applyPreset(1)}>Today</button>
+          <button type="button" className="secondary" onClick={() => applyPreset(7)}>Last 7 days</button>
+          <button type="button" className="secondary" onClick={() => applyPreset(30)}>Last 30 days</button>
+          <button type="button" className="secondary" onClick={clearFilters}>All time</button>
+        </div>
+
         <div className="inline-form">
           <label>
             From{" "}
