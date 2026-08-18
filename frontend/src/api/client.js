@@ -19,6 +19,17 @@ client.interceptors.response.use(
       const detail = error.response.data?.detail || "You don't have permission to do that.";
       window.dispatchEvent(new CustomEvent("permission-denied", { detail }));
     }
+
+    if (error.response?.status === 401) {
+      const detail = error.response.data?.detail || "";
+      if (detail.toLowerCase().includes("terminated")) {
+        localStorage.removeItem("access_token");
+        // Hard redirect — this runs outside React Router context, so a full
+        // navigation is the reliable way to force the user back to login.
+        window.location.href = "/login?terminated=1";
+      }
+    }
+
     return Promise.reject(error);
   }
 );

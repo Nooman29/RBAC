@@ -14,11 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.rbac import require_permission
+from app.core.config import settings
 from app.models.session import UserSession
 from app.models.user import User
 from app.models.role import Role
 from app.models.anomaly import AnomalyAlert
-from app.models.notification import Notification
 from app.services import anomaly_service
 from app.schemas.dashboard import (
     DashboardSummary,
@@ -33,8 +33,6 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 def _department_scope(current_user: User) -> str | None:
-    """Returns None (no filter — sees everything) for Administrators,
-    or the manager's own department string to scope every query to it."""
     role_names = {r.role_name for r in current_user.roles}
     if "Administrator" in role_names:
         return None
@@ -58,11 +56,45 @@ def _assert_session_in_scope(session: UserSession, dept: str | None):
         raise HTTPException(status_code=403, detail="This session belongs to a different department.")
 
 
+def _auto_close_stale_sessions(db: Session):
+    """
+    Sessions whose access token has expired but was never explicitly logged
+    out (tab closed, browser crashed, etc.) stay 'active' in the DB forever
+    otherwise. Close them lazily whenever sessions are queried, and score
+    them like any other closed session.
+    """
+    cutoff_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    threshold = datetime.utcnow() - timedelta(minutes=cutoff_minutes)
+
+    stale = (
+        db.query(UserSession)
+        .filter(UserSession.logout_time.is_(None), UserSession.login_time < threshold)
+        .all()
+    )
+    if not stale:
+        return
+
+    for s in stale:
+        s.logout_time = s.login_time + timedelta(minutes=cutoff_minutes)
+        s.session_duration = (s.logout_time - s.login_time).total_seconds()
+    db.commit()
+
+    for s in stale:
+        try:
+            anomaly_service.score_session(db, s.session_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Anomaly scoring failed for auto-closed stale session_id=%s", s.session_id
+            )
+
+
 @router.get("/summary", response_model=DashboardSummary)
 def get_summary(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
+    _auto_close_stale_sessions(db)
     dept = _department_scope(current_user)
 
     session_q = db.query(UserSession).join(User, UserSession.user_id == User.user_id)
@@ -75,7 +107,7 @@ def get_summary(
         user_q = user_q.filter(User.department == dept)
     total_users = user_q.count()
 
-    roles_configured = db.query(Role).count()  # roles are global, not department-scoped
+    roles_configured = db.query(Role).count()
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     alert_q = (
@@ -244,6 +276,7 @@ def list_sessions(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
+    _auto_close_stale_sessions(db)
     dept = _department_scope(current_user)
 
     query = db.query(UserSession).join(User, UserSession.user_id == User.user_id)

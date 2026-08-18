@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import FaceCapture from "../components/FaceCapture";
 import { useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 export default function Login() {
   const { loginWithPassword, requestOtp, verifyOtp, verifyFace } = useAuth();
@@ -19,6 +20,8 @@ export default function Login() {
   const [info, setInfo] = useState("");
   const [faceBusy, setFaceBusy] = useState(false);
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const wasTerminated = searchParams.get("terminated") === "1";
   const idleTimeout = location.state?.idleTimeout;
 
   async function handlePasswordSubmit(e) {
@@ -104,6 +107,9 @@ export default function Login() {
       <div className="auth-card">
         <h1>RBAC Admin</h1>
         {idleTimeout && <p className="info">You were signed out after 20 minutes of inactivity.</p>}
+        {wasTerminated && (
+          <p className="error">Your session was terminated by an administrator. Please log in again.</p>
+        )}
         {stage === "password" && (
           <form onSubmit={handlePasswordSubmit}>
             <label>Username</label>
