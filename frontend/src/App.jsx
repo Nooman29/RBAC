@@ -17,6 +17,7 @@ import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 import SetupPassword from "./pages/SetupPassword";
 import FirstTimeSetup from "./pages/FirstTimeSetup";
 import useIdleLogout from "./hooks/useIdleLogout";
+import SimulateAttack from "./pages/SimulateAttack";
 
 
 
@@ -46,6 +47,7 @@ function Layout({ children }) {
         <Link to="/alerts">Alerts</Link>
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
+        <Link to="/simulate-attack">Simulate Attack</Link>
         <Link to="/roles-comparison">Compare Roles</Link>
         <Link to="/audit-log">Audit Log</Link>
         <Link to="/face-id-setup">Face ID Setup</Link>
@@ -82,6 +84,7 @@ function App() {
         <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />
         <Route path="/setup-password" element={<SetupPassword />} />
         <Route path="/first-time-setup" element={<FirstTimeSetup />} />
+        <Route path="/simulate-attack" element={<Wrapped><SimulateAttack /></Wrapped>} />
       </Routes>
     </AuthProvider>
   );

@@ -365,3 +365,14 @@ textarea {
 .role-badge-manager { background: #f0ad4e; color: white; }
 .role-badge-standard-user { background: #5bc0de; color: white; }
 .preset-row { display: flex; gap: 8px; margin-bottom: 12px; }
+
+.scenario-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+.scenario-card {
+  border: 1px solid #ddd; border-radius: 8px; padding: 14px; cursor: pointer; display: block;
+}
+/* css for simulate attack page*/
+.scenario-card input { margin-right: 8px; }
+.scenario-selected { border-color: #5b8def; background: #f0f6ff; }
+.result-panel { margin-top: 20px; }
+.result-flagged { border-left: 4px solid #d9534f; }
+.result-clear { border-left: 4px solid #2e7d32; }
