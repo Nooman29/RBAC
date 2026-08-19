@@ -63,3 +63,24 @@ class TerminateSessionResult(BaseModel):
     terminated: bool
     logout_time: Optional[datetime] = None
     session_duration: Optional[float] = None
+
+class ScenarioOut(BaseModel):
+    key: str
+    label: str
+    description: str
+
+
+class SimulateAttackRequest(BaseModel):
+    user_id: int
+    scenario: str
+
+
+class SimulateAttackResult(BaseModel):
+    scenario: str
+    scenario_label: str
+    session_id: int
+    user_id: int
+    username: str
+    alert_id: Optional[int] = None
+    anomaly_score: Optional[float] = None
+    is_anomaly: Optional[bool] = None

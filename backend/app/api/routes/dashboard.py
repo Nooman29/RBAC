@@ -28,6 +28,8 @@ from app.schemas.dashboard import (
     SessionOut,
     TerminateSessionResult,
 )
+from app.services import attack_simulation_service
+from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -358,6 +360,25 @@ def session_activity(
          "sessions": counts.get((start + timedelta(days=i)).date().isoformat(), 0)}
         for i in range(days)
     ]
+
+@router.get("/simulate-attack/scenarios", response_model=List[ScenarioOut])
+def get_scenarios(
+    current_user: User = Depends(require_permission("dashboard", "write")),
+):
+    return attack_simulation_service.list_scenarios()
+
+# Simulating attack route
+@router.post("/simulate-attack", response_model=SimulateAttackResult)
+def simulate_attack(
+    payload: SimulateAttackRequest,
+    current_user: User = Depends(require_permission("dashboard", "write")),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = attack_simulation_service.run_scenario(db, payload.user_id, payload.scenario)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
 
 
 @router.get("/audit-log/export")
