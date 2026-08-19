@@ -376,3 +376,12 @@ textarea {
 .result-panel { margin-top: 20px; }
 .result-flagged { border-left: 4px solid #d9534f; }
 .result-clear { border-left: 4px solid #2e7d32; }
+
+.reset-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eee; }
+.reset-btn { flex-shrink: 0; }
+.reset-hint { font-size: 0.85rem; }
+.drift-nudge {
+  margin-top: 14px; padding: 12px 14px; background: #fff3cd; border: 1px solid #ffe69c;
+  border-radius: 6px; color: #664d03;
+}
+.drift-nudge p { margin: 4px 0 0 0; }
