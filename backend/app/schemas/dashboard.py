@@ -39,7 +39,7 @@ class AnomalyAlertDetail(AnomalyAlertSummary):
     session_duration: Optional[float] = None
     access_location: Optional[str] = None
     session_terminated: bool = False
-    detection_reason: str = "ml_model"
+   
 
 
 class AlertReviewUpdate(BaseModel):
@@ -89,3 +89,4 @@ class SimulateAttackResult(BaseModel):
     alert_id: Optional[int] = None
     anomaly_score: Optional[float] = None
     is_anomaly: Optional[bool] = None
+    detection_reason: Optional[str] = None

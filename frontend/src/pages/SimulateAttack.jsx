@@ -21,6 +21,26 @@ export default function SimulateAttack() {
       .then((res) => setScenarios(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load scenarios"));
   }, []);
+  const [fullResetting, setFullResetting] = useState(false);
+
+  async function handleFullReset() {
+    if (!selectedUser) return;
+    const confirmed = window.confirm(
+      "This wipes ALL session history for this user — real and simulated. Use only on demo/test accounts. Continue?"
+    );
+    if (!confirmed) return;
+    setError("");
+    setFullResetting(true);
+    try {
+      const res = await client.delete(`/api/dashboard/simulate-attack/full-reset/${selectedUser}`);
+      setResult(null);
+      setResetMessage(`Full reset: wiped ${res.data.deleted_sessions} session(s) entirely for this user.`);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Full reset failed");
+    } finally {
+      setFullResetting(false);
+    }
+  }
 
   async function handleRun() {
     if (!selectedUser || !selectedScenario) return;
@@ -129,6 +149,13 @@ export default function SimulateAttack() {
 
         <div className="reset-row">
           <button
+            onClick={handleFullReset}
+            disabled={!selectedUser || fullResetting}
+            className="danger reset-btn"
+          >
+            {fullResetting ? "Wiping…" : "Full reset (wipe ALL history)"}
+          </button>
+          <button
             onClick={handleReset}
             disabled={!selectedUser || resetting}
             className="secondary reset-btn"
@@ -173,6 +200,18 @@ export default function SimulateAttack() {
           {result.anomaly_score !== null && (
             <p>Anomaly score: <strong>{result.anomaly_score.toFixed(4)}</strong></p>
           )}
+
+          {result.is_anomaly && (
+            <p>
+              Detection method:{" "}
+              <strong>
+                {result.detection_reason === "repeat_pattern_override"
+                  ? "Repeated suspicious pattern (rule-based override)"
+                  : "Statistical anomaly (ML model)"}
+              </strong>
+            </p>
+          )} 
+            
           {result.alert_id && (
             <Link to={`/alerts/${result.alert_id}`}>View full alert & SHAP explanation &rarr;</Link>
           )}

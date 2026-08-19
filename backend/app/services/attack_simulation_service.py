@@ -177,6 +177,7 @@ def run_scenario(
         "alert_id": alert.alert_id if alert else None,
         "anomaly_score": alert.anomaly_score if alert else None,
         "is_anomaly": alert.is_anomaly if alert else None,
+        "detection_reason": alert.detection_reason if alert else None,
     }
 
 
