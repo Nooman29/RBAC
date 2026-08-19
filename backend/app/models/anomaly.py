@@ -18,5 +18,8 @@ class AnomalyAlert(Base):
     reviewed = Column(Boolean, default=False, nullable=False)
     reviewed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     notes = Column(Text, nullable=True)
-
+    
     session = relationship("UserSession", backref="anomaly_alert", uselist=False)
+    #attack simuation
+    detection_reason = Column(String(50), nullable=False, default="ml_model")
+    pattern_signature = Column(String(100), nullable=True)

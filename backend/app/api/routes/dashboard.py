@@ -31,6 +31,7 @@ from app.schemas.dashboard import (
 from app.services import attack_simulation_service
 from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult
 
+
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 

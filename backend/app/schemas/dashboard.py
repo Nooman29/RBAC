@@ -23,6 +23,7 @@ class AnomalyAlertSummary(BaseModel):
     department: Optional[str] = None
     anomaly_score: float
     is_anomaly: bool
+    detection_reason: str = "ml_model"
     alert_timestamp: datetime
     reviewed: bool
     model_config = ConfigDict(from_attributes=True)
@@ -38,6 +39,7 @@ class AnomalyAlertDetail(AnomalyAlertSummary):
     session_duration: Optional[float] = None
     access_location: Optional[str] = None
     session_terminated: bool = False
+    detection_reason: str = "ml_model"
 
 
 class AlertReviewUpdate(BaseModel):

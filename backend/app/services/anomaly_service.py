@@ -96,6 +96,52 @@ def _compute_shap_contributions(scaled_row: np.ndarray) -> Optional[list]:
     contributions.sort(key=lambda c: abs(c["shap_value"]), reverse=True)
     return contributions[:TOP_N_CONTRIBUTIONS]
 
+REPEAT_PATTERN_THRESHOLD = 1  # min prior genuine flagged occurrences of the same signature
+
+
+def _compute_pattern_signature(features: dict) -> str:
+    flags = []
+    if features.get("is_offhours"):
+        flags.append("offhours")
+    if features.get("is_weekend"):
+        flags.append("weekend")
+    if features.get("new_ip"):
+        flags.append("newip")
+    if features.get("n_write_zscore", 0) > 1.5:
+        flags.append("highwrite")
+    if features.get("n_delete_zscore", 0) > 1.5:
+        flags.append("highdelete")
+    if features.get("distinct_resources_zscore", 0) > 1.5:
+        flags.append("highresourcevariety")
+    if features.get("n_access_events_zscore", 0) > 1.5:
+        flags.append("highvolume")
+    return "|".join(sorted(flags)) if flags else "normal"
+
+
+def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> bool:
+    """
+    Checks whether this exact suspicious signature has been genuinely flagged
+    for this user before. Only counts REAL (non-simulated) prior alerts, so
+    demo/test runs never count toward this — this rule exists to catch real
+    repeated attacker behavior that baseline drift would otherwise normalize.
+    """
+    if signature == "normal":
+        return False
+
+    prior_count = (
+        db.query(AnomalyAlert)
+        .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
+        .filter(
+            UserSession.user_id == session.user_id,
+            UserSession.simulated_scenario.is_(None),
+            AnomalyAlert.session_id != session.session_id,
+            AnomalyAlert.is_anomaly.is_(True),
+            AnomalyAlert.pattern_signature == signature,
+        )
+        .count()
+    )
+    return prior_count >= REPEAT_PATTERN_THRESHOLD
+
 
 def score_session(
     db: DBSession, session_id: int, include_simulated_in_baseline: bool = False
@@ -122,6 +168,19 @@ def score_session(
     raw_score = float(-_model.score_samples(scaled)[0])
     is_anomaly = bool(raw_score >= _threshold)
 
+    signature = _compute_pattern_signature(features)
+    detection_reason = "ml_model"
+
+    if not is_anomaly and _is_repeat_offender(db, session, signature):
+        is_anomaly = True
+        detection_reason = "repeat_pattern_override"
+        logger.info(
+            "Repeat-offender override: session_id=%s user_id=%s signature=%s "
+            "(ML score %.4f was below threshold %.4f, but this pattern was "
+            "previously flagged for this user)",
+            session_id, session.user_id, signature, raw_score, _threshold,
+        )
+
     contributions = _compute_shap_contributions(scaled)
 
     alert = AnomalyAlert(
@@ -130,6 +189,8 @@ def score_session(
         is_anomaly=is_anomaly,
         features_json=json.dumps(features),
         shap_values_json=json.dumps(contributions) if contributions is not None else None,
+        detection_reason=detection_reason,
+        pattern_signature=signature,
     )
     db.add(alert)
     db.commit()

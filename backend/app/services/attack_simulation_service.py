@@ -4,7 +4,7 @@ Live attack simulation for demo purposes.
 
 from __future__ import annotations
 
-import random
+import random 
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session as DBSession
 
@@ -108,10 +108,21 @@ def run_scenario(
         raise ValueError("User not found")
 
     now = datetime.utcnow()
-    login_time = now.replace(hour=cfg["login_hour"], minute=random.randint(0, 59), second=0, microsecond=0)
-    if login_time > now:
-        login_time -= timedelta(days=1)
-    logout_time = login_time + timedelta(seconds=cfg["duration_sec"])
+
+    # Jitter login hour slightly (±1h) and land on a random recent day, so
+    # repeated runs of the same scenario don't look robotically identical —
+    # more realistic than firing at the exact same minute every time.
+    hour_jitter = random.choice([-1, 0, 0, 1])
+    jittered_hour = max(0, min(23, cfg["login_hour"] + hour_jitter))
+    day_offset = random.randint(0, 3)
+
+    login_time = (now - timedelta(days=day_offset)).replace(
+        hour=jittered_hour, minute=random.randint(0, 59), second=random.randint(0, 59), microsecond=0
+    )
+
+    duration_jitter = random.uniform(0.85, 1.15)
+    duration_sec = int(cfg["duration_sec"] * duration_jitter)
+    logout_time = login_time + timedelta(seconds=duration_sec)
 
     access_location = (
         _pick_unseen_ip(db, user_id) if cfg["new_ip"] else (_pick_seen_ip(db, user_id) or "10.0.0.50")
@@ -121,7 +132,7 @@ def run_scenario(
         user_id=user_id,
         login_time=login_time,
         logout_time=logout_time,
-        session_duration=cfg["duration_sec"],
+        session_duration=duration_sec,
         access_location=access_location,
         terminated=False,
         simulated_scenario=scenario_key,
@@ -130,7 +141,7 @@ def run_scenario(
     db.commit()
     db.refresh(session)
 
-    n_events = cfg["n_events"]
+    n_events = max(3, int(cfg["n_events"] * random.uniform(0.8, 1.2)))
     n_write = int(n_events * cfg["write_ratio"])
     n_delete = int(n_events * cfg["delete_ratio"])
     n_read = max(0, n_events - n_write - n_delete)
@@ -177,6 +188,32 @@ def reset_simulated_data(db: DBSession, user_id: int) -> int:
         for s in db.query(UserSession.session_id)
         .filter(UserSession.user_id == user_id, UserSession.simulated_scenario.isnot(None))
         .all()
+    ]
+    if not session_ids:
+        return 0
+
+    alert_ids = [
+        a.alert_id
+        for a in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(session_ids)).all()
+    ]
+    if alert_ids:
+        db.query(Notification).filter(Notification.alert_id.in_(alert_ids)).delete(synchronize_session=False)
+        db.query(AnomalyAlert).filter(AnomalyAlert.alert_id.in_(alert_ids)).delete(synchronize_session=False)
+
+    db.query(AccessLog).filter(AccessLog.session_id.in_(session_ids)).delete(synchronize_session=False)
+    db.query(UserSession).filter(UserSession.session_id.in_(session_ids)).delete(synchronize_session=False)
+    db.commit()
+    return len(session_ids)
+
+def full_reset_user_history(db: DBSession, user_id: int) -> int:
+    """
+    DANGER: wipes ALL session history for a user — real and simulated alike,
+    plus every alert/notification tied to those sessions. Intended only for
+    resetting demo/test accounts to a clean slate before a presentation, not
+    for use on genuine production users with real activity worth keeping.
+    """
+    session_ids = [
+        s.session_id for s in db.query(UserSession.session_id).filter(UserSession.user_id == user_id).all()
     ]
     if not session_ids:
         return 0
