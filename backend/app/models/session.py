@@ -14,6 +14,7 @@ class UserSession(Base):
     logout_time = Column(DateTime, nullable=True)
     session_duration = Column(Float, nullable=True)
     access_location = Column(String(100), nullable=True)
+    simulated_scenario = Column(String(50), nullable=True) #simulated scenario key if this session was created by the attack simulation feature
     terminated = Column(Boolean, nullable=False, default=False)  # admin-forced termination
 
     user = relationship("User", back_populates="sessions")

@@ -1,15 +1,5 @@
 """
 Feature engineering for the live Isolation Forest anomaly scorer.
-
-Grain: one row per SESSION (not per user-day, unlike the CERT offline
-notebook). The live schema only gives us session-level and access-log-level
-data, and session volume per user will be far lower than CERT's daily logs,
-so per-session is the natural, honest grain here.
-
-This module is imported by BOTH:
-    - scripts/train_isolation_forest.py   (offline training)
-    - app/services/anomaly_service.py     (live scoring)
-so training and inference are guaranteed to build features identically.
 """
 
 from __future__ import annotations
@@ -21,7 +11,6 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.models.session import UserSession, AccessLog
 
-# Raw per-session features, computed directly from one session + its access logs
 RAW_FEATURE_COLUMNS = [
     "login_hour",
     "is_offhours",
@@ -36,12 +25,6 @@ RAW_FEATURE_COLUMNS = [
     "new_ip",
 ]
 
-# Subset of raw features we ALSO express as a per-user z-score — i.e. how far
-# this session deviates from THAT user's own historical average. This is what
-# catches "this user is behaving unlike themselves", as opposed to just
-# "this user does more stuff than other users" (which would unfairly flag
-# naturally high-activity roles, e.g. admins — same issue the CERT notebook
-# called out in Pipeline v2).
 ZSCORE_SOURCE_COLUMNS = [
     "session_duration_sec",
     "n_access_events",
@@ -58,10 +41,9 @@ def _offhours(hour: int) -> int:
 
 
 def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
-    """Raw (non-zscore) features for a single, already-closed session."""
     login_time: datetime = session.login_time
     hour = login_time.hour
-    weekday = login_time.weekday()  # 5, 6 = Sat, Sun
+    weekday = login_time.weekday()
 
     logs = (
         db.query(AccessLog)
@@ -75,7 +57,6 @@ def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
     n_write = sum(1 for l in logs if l.action_performed == "write")
     n_delete = sum(1 for l in logs if l.action_performed == "delete")
 
-    # Has this user ever logged in from this IP before this session?
     prior_locations = {
         loc
         for (loc,) in db.query(UserSession.access_location)
@@ -107,24 +88,36 @@ def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
 
 
 def build_user_history_stats(
-    db: DBSession, user_id: int, exclude_session_id: Optional[int] = None
+    db: DBSession,
+    user_id: int,
+    exclude_session_id: Optional[int] = None,
+    include_simulated: bool = False,
 ) -> dict:
     """
     Mean/std of each ZSCORE_SOURCE_COLUMNS raw feature across this user's
-    OTHER closed sessions (leave-one-out for the session being scored or
-    trained on). Turns a raw count into "how unusual is this for THIS user".
+    OTHER closed sessions.
+
+    include_simulated=False (default, production behavior): simulated attack
+    sessions are excluded, so a user's baseline always reflects genuine
+    historical behavior only.
+
+    include_simulated=True: used ONLY by the attack-simulation demo tool's
+    "naive" mode, to intentionally reproduce a baseline that gets polluted by
+    repeated simulated sessions — used to demonstrate why the exclusion above
+    is necessary. Never used in the normal scoring path.
     """
     query = db.query(UserSession).filter(
-        UserSession.user_id == user_id, UserSession.session_duration.isnot(None)
+        UserSession.user_id == user_id,
+        UserSession.session_duration.isnot(None),
     )
+    if not include_simulated:
+        query = query.filter(UserSession.simulated_scenario.is_(None))
     if exclude_session_id is not None:
         query = query.filter(UserSession.session_id != exclude_session_id)
 
     other_sessions = query.all()
 
     if not other_sessions:
-        # No history yet (e.g. this is the user's very first session) —
-        # z-scores default to 0 rather than dividing by nothing.
         stats = {f"{c}_mean": 0.0 for c in ZSCORE_SOURCE_COLUMNS}
         stats.update({f"{c}_std": 0.0 for c in ZSCORE_SOURCE_COLUMNS})
         return stats
@@ -143,13 +136,19 @@ def build_user_history_stats(
     return stats
 
 
-def build_session_feature_vector(db: DBSession, session: UserSession) -> dict:
+def build_session_feature_vector(
+    db: DBSession, session: UserSession, include_simulated_in_baseline: bool = False
+) -> dict:
     """
     Full feature dict for one session, keyed exactly by FEATURE_COLUMNS.
-    This is the single function both training and live scoring call.
+    include_simulated_in_baseline is only ever True when called from the
+    attack-simulation demo tool's "naive" mode.
     """
     raw = build_raw_session_features(db, session)
-    stats = build_user_history_stats(db, session.user_id, exclude_session_id=session.session_id)
+    stats = build_user_history_stats(
+        db, session.user_id, exclude_session_id=session.session_id,
+        include_simulated=include_simulated_in_baseline,
+    )
 
     features = dict(raw)
     for col in ZSCORE_SOURCE_COLUMNS:
@@ -157,5 +156,4 @@ def build_session_feature_vector(db: DBSession, session: UserSession) -> dict:
         std = stats[f"{col}_std"]
         features[f"{col}_zscore"] = (raw[col] - mean) / (std + 1e-6)
 
-    # Guarantee consistent column ordering downstream (scaler/model expect it)
     return {col: features[col] for col in FEATURE_COLUMNS}

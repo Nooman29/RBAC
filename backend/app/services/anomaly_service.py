@@ -97,7 +97,9 @@ def _compute_shap_contributions(scaled_row: np.ndarray) -> Optional[list]:
     return contributions[:TOP_N_CONTRIBUTIONS]
 
 
-def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
+def score_session(
+    db: DBSession, session_id: int, include_simulated_in_baseline: bool = False
+) -> Optional[AnomalyAlert]:
     if not _load_artifacts():
         return None
 
@@ -111,7 +113,9 @@ def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
     if existing:
         return existing
 
-    features = build_session_feature_vector(db, session)
+    features = build_session_feature_vector(
+        db, session, include_simulated_in_baseline=include_simulated_in_baseline
+    )
     ordered_values = [[features[col] for col in FEATURE_COLUMNS]]
 
     scaled = _scaler.transform(ordered_values)

@@ -64,6 +64,7 @@ class TerminateSessionResult(BaseModel):
     logout_time: Optional[datetime] = None
     session_duration: Optional[float] = None
 
+
 class ScenarioOut(BaseModel):
     key: str
     label: str
@@ -73,11 +74,13 @@ class ScenarioOut(BaseModel):
 class SimulateAttackRequest(BaseModel):
     user_id: int
     scenario: str
+    demo_mode: str = "isolated"
 
 
 class SimulateAttackResult(BaseModel):
     scenario: str
     scenario_label: str
+    demo_mode: str
     session_id: int
     user_id: int
     username: str

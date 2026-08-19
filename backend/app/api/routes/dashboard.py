@@ -367,7 +367,7 @@ def get_scenarios(
 ):
     return attack_simulation_service.list_scenarios()
 
-# Simulating attack route
+
 @router.post("/simulate-attack", response_model=SimulateAttackResult)
 def simulate_attack(
     payload: SimulateAttackRequest,
@@ -375,10 +375,22 @@ def simulate_attack(
     db: Session = Depends(get_db),
 ):
     try:
-        result = attack_simulation_service.run_scenario(db, payload.user_id, payload.scenario)
+        result = attack_simulation_service.run_scenario(
+            db, payload.user_id, payload.scenario, demo_mode=payload.demo_mode
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
+
+
+@router.delete("/simulate-attack/reset/{user_id}")
+def reset_simulated_data_route(
+    user_id: int,
+    current_user: User = Depends(require_permission("dashboard", "write")),
+    db: Session = Depends(get_db),
+):
+    deleted = attack_simulation_service.reset_simulated_data(db, user_id)
+    return {"deleted_sessions": deleted}
 
 
 @router.get("/audit-log/export")
