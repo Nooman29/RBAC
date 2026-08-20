@@ -393,6 +393,15 @@ def reset_simulated_data_route(
     deleted = attack_simulation_service.reset_simulated_data(db, user_id)
     return {"deleted_sessions": deleted}
 
+@router.delete("/simulate-attack/full-reset/{user_id}")
+def full_reset_user_route(
+    user_id: int,
+    current_user: User = Depends(require_permission("dashboard", "write")),
+    db: Session = Depends(get_db),
+):
+    deleted = attack_simulation_service.full_reset_user_history(db, user_id)
+    return {"deleted_sessions": deleted}
+
 
 @router.get("/audit-log/export")
 def export_audit_log(
