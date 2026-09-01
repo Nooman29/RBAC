@@ -385,3 +385,7 @@ textarea {
   border-radius: 6px; color: #664d03;
 }
 .drift-nudge p { margin: 4px 0 0 0; }
+
+.user-picker { margin: 14px 0; }
+.user-checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 10px; }
+.user-check-item { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }

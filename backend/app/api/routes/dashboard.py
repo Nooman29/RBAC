@@ -29,7 +29,8 @@ from app.schemas.dashboard import (
     TerminateSessionResult,
 )
 from app.services import attack_simulation_service
-from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult
+from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult, AuditLogEntryOut
+
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -402,12 +403,101 @@ def full_reset_user_route(
     deleted = attack_simulation_service.full_reset_user_history(db, user_id)
     return {"deleted_sessions": deleted}
 
+@router.get("/audit-log/preview", response_model=List[AuditLogEntryOut])
+def preview_audit_log(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    user_ids: Optional[List[int]] = Query(None),
+    current_user: User = Depends(require_permission("dashboard", "read")),
+    db: Session = Depends(get_db),
+):
+    dept = _department_scope(current_user)
+
+    query = (
+        db.query(AccessLog)
+        .join(UserSession, AccessLog.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+    )
+    if dept:
+        query = query.filter(User.department == dept)
+    if start_date:
+        query = query.filter(AccessLog.access_timestamp >= start_date)
+    if end_date:
+        query = query.filter(AccessLog.access_timestamp <= end_date)
+    if user_ids:
+        query = query.filter(UserSession.user_id.in_(user_ids))
+
+    logs = query.order_by(AccessLog.access_timestamp.desc()).limit(500).all()
+
+    return [
+        AuditLogEntryOut(
+            log_id=log.log_id,
+            timestamp=log.access_timestamp,
+            username=log.session.user.username if log.session and log.session.user else "unknown",
+            department=log.session.user.department if log.session and log.session.user else None,
+            session_id=log.session_id,
+            resource_name=log.resource_name,
+            action_performed=log.action_performed,
+        )
+        for log in logs
+    ]
+
 
 @router.get("/audit-log/export")
 def export_audit_log(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    user_id: Optional[int] = Query(None),
+    user_ids: Optional[List[int]] = Query(None),
+    current_user: User = Depends(require_permission("dashboard", "read")),
+    db: Session = Depends(get_db),
+):
+    dept = _department_scope(current_user)
+
+    query = (
+        db.query(AccessLog)
+        .join(UserSession, AccessLog.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+    )
+    if dept:
+        query = query.filter(User.department == dept)
+    if start_date:
+        query = query.filter(AccessLog.access_timestamp >= start_date)
+    if end_date:
+        query = query.filter(AccessLog.access_timestamp <= end_date)
+    if user_ids:
+        query = query.filter(UserSession.user_id.in_(user_ids))
+
+    logs = query.order_by(AccessLog.access_timestamp.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["log_id", "timestamp", "username", "department", "session_id", "resource_name", "action_performed"])
+    for log in logs:
+        session = log.session
+        user = session.user if session else None
+        writer.writerow([
+            log.log_id,
+            log.access_timestamp.isoformat(),
+            user.username if user else "unknown",
+            user.department if user else "unknown",
+            log.session_id,
+            log.resource_name,
+            log.action_performed,
+        ])
+
+    filename = f"audit_log_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/audit-log/export")
+def export_audit_log(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    user_ids: Optional[List[int]] = Query(None),
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):

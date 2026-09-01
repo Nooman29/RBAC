@@ -90,3 +90,12 @@ class SimulateAttackResult(BaseModel):
     anomaly_score: Optional[float] = None
     is_anomaly: Optional[bool] = None
     detection_reason: Optional[str] = None
+
+class AuditLogEntryOut(BaseModel):
+    log_id: int
+    timestamp: datetime
+    username: str
+    department: Optional[str] = None
+    session_id: int
+    resource_name: str
+    action_performed: str
