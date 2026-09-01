@@ -45,6 +45,9 @@ export default function AlertDetail() {
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
+  const [terminating, setTerminating] = useState(false);
+  const [terminateMsg, setTerminateMsg] = useState("");
+
   function load() {
     client
       .get(`/api/dashboard/alerts/${alertId}`)
@@ -69,6 +72,37 @@ export default function AlertDetail() {
       setSaving(false);
     }
   }
+
+    async function handleMarkReviewed() {
+    setSaving(true);
+    setError("");
+    try {
+      await client.patch(`/api/dashboard/alerts/${alertId}`, { reviewed: true, notes });
+      setJustSaved(true);
+      setTimeout(() => navigate("/alerts"), 700);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to save");
+      setSaving(false);
+    }
+  }
+
+  // handle termination 
+  async function handleTerminate() {
+    if (!window.confirm("Terminate this session? The user will be logged out immediately if online.")) return;
+    setTerminating(true);
+    setTerminateMsg("");
+    try {
+      await client.post(`/api/dashboard/sessions/${alert.session_id}/terminate`);
+      setTerminateMsg("Session terminated. The user's session has been ended.");
+      load();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to terminate session");
+    } finally {
+      setTerminating(false);
+    }
+  }
+
+  if (error && !alert) return <p className="error">{error}</p>;
 
   if (error && !alert) return <p className="error">{error}</p>;
   if (!alert) return <p>Loading…</p>;
@@ -95,13 +129,22 @@ export default function AlertDetail() {
         </div>
       </div>
 
-      <div className="session-status">
+            <div className="session-status">
         {alert.session_terminated ? (
-          <span className="badge badge-danger">This session was terminated by an administrator</span>
+          <span className="badge badge-danger">Terminated by an administrator</span>
+        ) : alert.session_active ? (
+          <span className="badge badge-online">Online — session still active</span>
         ) : (
-          <span className="badge badge-neutral">Session ended normally — no further action needed</span>
+          <span className="badge badge-neutral">Ended normally — user logged out</span>
+        )}
+
+        {!alert.session_terminated && (
+          <button className="danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
+            {terminating ? "Terminating…" : "Terminate Session"}
+          </button>
         )}
       </div>
+      {terminateMsg && <p className="info">{terminateMsg}</p>}
 
       {alert.shap_contributions.length > 0 && (
         <>

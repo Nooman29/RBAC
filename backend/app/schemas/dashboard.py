@@ -99,3 +99,15 @@ class AuditLogEntryOut(BaseModel):
     session_id: int
     resource_name: str
     action_performed: str
+
+class AnomalyAlertDetail(AnomalyAlertSummary):
+    reviewed_by: Optional[int] = None
+    notes: Optional[str] = None
+    features: Dict[str, Any]
+    shap_contributions: List[ShapContribution] = []
+    role_names: List[str] = []
+    login_time: datetime
+    session_duration: Optional[float] = None
+    access_location: Optional[str] = None
+    session_terminated: bool = False
+    session_active: bool = False
