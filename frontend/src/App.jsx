@@ -18,7 +18,7 @@ import SetupPassword from "./pages/SetupPassword";
 import FirstTimeSetup from "./pages/FirstTimeSetup";
 import useIdleLogout from "./hooks/useIdleLogout";
 import SimulateAttack from "./pages/SimulateAttack";
-
+import DetectionOutcomes from "./pages/DetectionOutcomes";
 
 
 function ProtectedRoute({ children }) {
@@ -48,6 +48,7 @@ function Layout({ children }) {
         <Link to="/users">Users</Link>
         <Link to="/roles">Roles</Link>
         <Link to="/simulate-attack">Simulate Attack</Link>
+        <Link to="/detection-outcomes">Detection Outcomes</Link>
         <Link to="/roles-comparison">Compare Roles</Link>
         <Link to="/audit-log">Audit Log</Link>
         <Link to="/face-id-setup">Face ID Setup</Link>
@@ -85,6 +86,7 @@ function App() {
         <Route path="/setup-password" element={<SetupPassword />} />
         <Route path="/first-time-setup" element={<FirstTimeSetup />} />
         <Route path="/simulate-attack" element={<Wrapped><SimulateAttack /></Wrapped>} />
+        <Route path="/detection-outcomes" element={<Wrapped><DetectionOutcomes /></Wrapped>} />
       </Routes>
     </AuthProvider>
   );

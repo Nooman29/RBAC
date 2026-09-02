@@ -109,3 +109,9 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.badge-overdue { background: #fff3cd; color: #856404; }
+.verdict-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 12px 0; }
+.verdict-option { display: block; border: 1px solid #ddd; border-radius: 8px; padding: 12px; cursor: pointer; }
+.verdict-option input { margin-right: 8px; }
+.verdict-selected { border-color: #5b8def; background: #f0f6ff; }

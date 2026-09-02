@@ -389,3 +389,7 @@ textarea {
 .user-picker { margin: 14px 0; }
 .user-checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 10px; }
 .user-check-item { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+
+.badge-danger { background: #f8d7da; color: #842029; }
+.badge-online { background: #d4edda; color: #1e7b34; }
+.badge-neutral { background: #e2e3e5; color: #41464b; }

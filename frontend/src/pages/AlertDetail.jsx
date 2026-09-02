@@ -21,6 +21,12 @@ const FEATURE_META = {
   n_delete_zscore: { label: "Delete volume vs. usual", isZScore: true, baseKey: "n_delete", baseLabel: "Delete volume" },
 };
 
+const VERDICT_LABELS = {
+  confirmed_threat: "Confirmed Threat",
+  false_positive: "False Positive",
+  authorized_exception: "Authorized Exception",
+};
+
 function describeZScore(baseLabel, z, rawValue) {
   const direction = z >= 0 ? "above" : "below";
   const magnitude = Math.abs(z) > 2 ? "far" : Math.abs(z) > 1 ? "moderately" : "slightly";
@@ -41,10 +47,10 @@ export default function AlertDetail() {
   const navigate = useNavigate();
   const [alert, setAlert] = useState(null);
   const [notes, setNotes] = useState("");
+  const [verdict, setVerdict] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
-
   const [terminating, setTerminating] = useState(false);
   const [terminateMsg, setTerminateMsg] = useState("");
 
@@ -54,17 +60,22 @@ export default function AlertDetail() {
       .then((res) => {
         setAlert(res.data);
         setNotes(res.data.notes || "");
+        setVerdict(res.data.review_verdict || "");
       })
       .catch((err) => setError(err.response?.data?.detail || "Failed to load alert"));
   }
 
   useEffect(load, [alertId]);
 
-  async function handleMarkReviewed() {
+  async function handleSaveVerdict() {
+    if (!verdict) {
+      setError("Select a verdict before saving.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      await client.patch(`/api/dashboard/alerts/${alertId}`, { reviewed: true, notes });
+      await client.patch(`/api/dashboard/alerts/${alertId}`, { review_verdict: verdict, notes });
       setJustSaved(true);
       setTimeout(() => navigate("/alerts"), 700);
     } catch (err) {
@@ -73,20 +84,6 @@ export default function AlertDetail() {
     }
   }
 
-    async function handleMarkReviewed() {
-    setSaving(true);
-    setError("");
-    try {
-      await client.patch(`/api/dashboard/alerts/${alertId}`, { reviewed: true, notes });
-      setJustSaved(true);
-      setTimeout(() => navigate("/alerts"), 700);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to save");
-      setSaving(false);
-    }
-  }
-
-  // handle termination 
   async function handleTerminate() {
     if (!window.confirm("Terminate this session? The user will be logged out immediately if online.")) return;
     setTerminating(true);
@@ -103,8 +100,6 @@ export default function AlertDetail() {
   }
 
   if (error && !alert) return <p className="error">{error}</p>;
-
-  if (error && !alert) return <p className="error">{error}</p>;
   if (!alert) return <p>Loading…</p>;
 
   const maxAbsShap = Math.max(1e-6, ...alert.shap_contributions.map((c) => Math.abs(c.shap_value)));
@@ -116,7 +111,10 @@ export default function AlertDetail() {
   return (
     <div>
       <Link to="/alerts">&larr; Back to alerts</Link>
-      <h2>Alert #{alert.alert_id}</h2>
+      <h2>
+        Alert #{alert.alert_id}
+        {alert.is_overdue && <span className="badge badge-overdue" style={{ marginLeft: 10 }}>Overdue Review</span>}
+      </h2>
 
       <div className="detail-grid">
         <div><strong>User:</strong> {alert.username} ({alert.role_names.join(", ") || "no role"})</div>
@@ -127,9 +125,15 @@ export default function AlertDetail() {
         <div className={alert.is_anomaly ? "score-flagged" : "score-normal"}>
           <strong>Anomaly score:</strong> {alert.anomaly_score.toFixed(4)} {alert.is_anomaly ? "⚠️ Flagged" : ""}
         </div>
+        <div>
+          <strong>Detection method:</strong>{" "}
+          {alert.detection_reason === "repeat_pattern_override"
+            ? "Repeated suspicious pattern (rule-based override)"
+            : "Statistical anomaly (ML model)"}
+        </div>
       </div>
 
-            <div className="session-status">
+      <div className="session-status">
         {alert.session_terminated ? (
           <span className="badge badge-danger">Terminated by an administrator</span>
         ) : alert.session_active ? (
@@ -138,7 +142,7 @@ export default function AlertDetail() {
           <span className="badge badge-neutral">Ended normally — user logged out</span>
         )}
 
-        {!alert.session_terminated && (
+        {alert.session_active && (
           <button className="danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
             {terminating ? "Terminating…" : "Terminate Session"}
           </button>
@@ -197,6 +201,32 @@ export default function AlertDetail() {
 
       <h3>Review</h3>
       {error && <p className="error">{error}</p>}
+      {alert.review_verdict && (
+        <p className="info">Current verdict: <strong>{VERDICT_LABELS[alert.review_verdict]}</strong></p>
+      )}
+      <p className="muted">
+        Choosing a verdict determines whether this session's behavior counts toward this user's future baseline.
+        Confirming a threat (or leaving it unreviewed) keeps it excluded — the system will never treat unconfirmed
+        suspicious behavior as "normal." Marking it a false positive or an authorized exception (e.g. an approved
+        maintenance window) allows it to count as legitimate history going forward.
+      </p>
+      <div className="verdict-options">
+        <label className={`verdict-option ${verdict === "confirmed_threat" ? "verdict-selected" : ""}`}>
+          <input type="radio" name="verdict" value="confirmed_threat" checked={verdict === "confirmed_threat"} onChange={(e) => setVerdict(e.target.value)} />
+          <strong>Confirmed Threat</strong>
+          <p className="muted">This genuinely looks malicious or unauthorized. Stays excluded from this user's baseline.</p>
+        </label>
+        <label className={`verdict-option ${verdict === "false_positive" ? "verdict-selected" : ""}`}>
+          <input type="radio" name="verdict" value="false_positive" checked={verdict === "false_positive"} onChange={(e) => setVerdict(e.target.value)} />
+          <strong>False Positive</strong>
+          <p className="muted">This was actually normal behavior for this user. Will count toward their baseline going forward.</p>
+        </label>
+        <label className={`verdict-option ${verdict === "authorized_exception" ? "verdict-selected" : ""}`}>
+          <input type="radio" name="verdict" value="authorized_exception" checked={verdict === "authorized_exception"} onChange={(e) => setVerdict(e.target.value)} />
+          <strong>Authorized Exception</strong>
+          <p className="muted">Unusual, but approved (e.g. a scheduled maintenance window). Will count toward their baseline going forward.</p>
+        </label>
+      </div>
       <textarea
         rows={4}
         value={notes}
@@ -204,8 +234,8 @@ export default function AlertDetail() {
         placeholder="Notes on this alert…"
       />
       <div>
-        <button onClick={handleMarkReviewed} disabled={saving || justSaved}>
-          {justSaved ? "Saved ✓" : saving ? "Saving…" : alert.reviewed ? "Update review" : "Mark reviewed"}
+        <button onClick={handleSaveVerdict} disabled={saving || justSaved}>
+          {justSaved ? "Saved ✓" : saving ? "Saving…" : "Save Verdict"}
         </button>
         {justSaved && <span className="info"> Updated — returning to alerts…</span>}
       </div>
