@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
+import { parseUtc } from "../utils/date";
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState([]);
@@ -66,7 +67,7 @@ export default function Alerts() {
               <td>{a.anomaly_score.toFixed(4)}</td>
               <td>{a.is_anomaly ? "⚠️ Yes" : "No"}</td>
               <td>{a.reviewed ? "✓" : "—"}</td>
-              <td>{new Date(a.alert_timestamp).toLocaleString()}</td>
+              <td>{parseUtc(a.alert_timestamp).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>

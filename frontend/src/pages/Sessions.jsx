@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import client from "../api/client";
+import { parseUtc } from "../utils/date";
 
 export default function Sessions() {
   const [sessions, setSessions] = useState([]);
@@ -51,7 +52,7 @@ export default function Sessions() {
           {sessions.map((s) => (
             <tr key={s.session_id}>
               <td>{s.username}</td>
-              <td>{new Date(s.login_time).toLocaleString()}</td>
+              <td>{parseUtc(s.login_time).toLocaleString()}</td>
               <td>{s.access_location || "unknown"}</td>
               <td>
                 <button

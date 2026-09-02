@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import client from "../api/client";
+import { parseUtc } from "../utils/date";
 
 const FEATURE_META = {
   login_hour: { label: "Login hour", describe: (raw) => `Logged in at ${Math.round(raw)}:00.` },
@@ -119,7 +120,7 @@ export default function AlertDetail() {
       <div className="detail-grid">
         <div><strong>User:</strong> {alert.username} ({alert.role_names.join(", ") || "no role"})</div>
         <div><strong>Session:</strong> {alert.session_id}</div>
-        <div><strong>Login time:</strong> {new Date(alert.login_time).toLocaleString()}</div>
+        <div><strong>Login time:</strong> {parseUtc(alert.login_time).toLocaleString()}</div>
         <div><strong>Duration:</strong> {alert.session_duration ? `${Math.round(alert.session_duration)}s` : "—"}</div>
         <div><strong>IP:</strong> {alert.access_location || "unknown"}</div>
         <div className={alert.is_anomaly ? "score-flagged" : "score-normal"}>

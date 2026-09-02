@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import client from "../api/client";
+import { parseUtc } from "../utils/date";
 
 function presetRange(days) {
   const end = new Date();
@@ -161,7 +162,7 @@ export default function AuditLog() {
             <tbody>
               {previewRows.map((r) => (
                 <tr key={r.log_id}>
-                  <td>{new Date(r.timestamp).toLocaleString()}</td>
+                  <td>{parseUtc(r.timestamp).toLocaleString()}</td>
                   <td>{r.username}</td>
                   <td>{r.department}</td>
                   <td>{r.session_id}</td>

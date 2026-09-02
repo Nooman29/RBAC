@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
+import { parseUtc } from "../utils/date";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -88,7 +89,7 @@ export default function NotificationBell() {
             >
               <div className="notif-title">{n.title}</div>
               <div className="notif-body">{n.body}</div>
-              <div className="notif-time">{new Date(n.created_at).toLocaleString()}</div>
+              <div className="notif-time">{parseUtc(n.created_at).toLocaleString()}</div>
             </Link>
           ))}
         </div>
