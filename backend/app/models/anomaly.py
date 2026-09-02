@@ -23,3 +23,4 @@ class AnomalyAlert(Base):
     #attack simuation
     detection_reason = Column(String(50), nullable=False, default="ml_model")
     pattern_signature = Column(String(100), nullable=True)
+    review_verdict = Column(String(30), nullable=True)

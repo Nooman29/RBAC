@@ -30,10 +30,21 @@ from app.schemas.dashboard import (
 )
 from app.services import attack_simulation_service
 from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult, AuditLogEntryOut
+# detection review outcome to fix baseline drift
+from app.core.constants import REVIEW_VERDICTS
+from app.schemas.dashboard import DetectionOutcomeSummary
 
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+
+OVERDUE_HOURS = 24
+
+
+def _is_overdue(alert: AnomalyAlert) -> bool:
+    if not alert.is_anomaly or alert.review_verdict is not None:
+        return False
+    return (datetime.utcnow() - alert.alert_timestamp) > timedelta(hours=OVERDUE_HOURS)
 
 
 def _department_scope(current_user: User) -> str | None:
@@ -167,6 +178,8 @@ def list_alerts(
                 is_anomaly=alert.is_anomaly,
                 alert_timestamp=alert.alert_timestamp,
                 reviewed=alert.reviewed,
+                review_verdict=alert.review_verdict,
+                is_overdue=_is_overdue(alert),
             )
         )
     return results
@@ -197,6 +210,8 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         session_duration=session.session_duration if session else None,
         access_location=session.access_location if session else None,
         session_terminated=session.terminated if session else False,
+        review_verdict=alert.review_verdict,
+        is_overdue=_is_overdue(alert),
     )
 
 
@@ -212,7 +227,7 @@ def get_alert_detail(
     _assert_alert_in_scope(alert, _department_scope(current_user))
     return _build_alert_detail(alert)
 
-
+#update alert
 @router.patch("/alerts/{alert_id}", response_model=AnomalyAlertDetail)
 def update_alert(
     alert_id: int,
@@ -225,10 +240,17 @@ def update_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
     _assert_alert_in_scope(alert, _department_scope(current_user))
 
-    if payload.reviewed is not None:
+    if payload.review_verdict is not None:
+        if payload.review_verdict not in REVIEW_VERDICTS:
+            raise HTTPException(status_code=400, detail=f"review_verdict must be one of: {', '.join(REVIEW_VERDICTS)}")
+        alert.review_verdict = payload.review_verdict
+        alert.reviewed = True
+        alert.reviewed_by = current_user.user_id
+    elif payload.reviewed is not None:
         alert.reviewed = payload.reviewed
         if payload.reviewed:
             alert.reviewed_by = current_user.user_id
+
     if payload.notes is not None:
         alert.notes = payload.notes
 
@@ -236,6 +258,38 @@ def update_alert(
     db.refresh(alert)
     return _build_alert_detail(alert)
 
+@router.get("/detection-outcomes", response_model=DetectionOutcomeSummary)
+def get_detection_outcomes(
+    current_user: User = Depends(require_permission("dashboard", "read")),
+    db: Session = Depends(get_db),
+):
+    dept = _department_scope(current_user)
+
+    query = (
+        db.query(AnomalyAlert)
+        .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+        .filter(AnomalyAlert.is_anomaly.is_(True))
+    )
+    if dept:
+        query = query.filter(User.department == dept)
+
+    alerts = query.all()
+
+    confirmed = sum(1 for a in alerts if a.review_verdict == "confirmed_threat")
+    false_positive = sum(1 for a in alerts if a.review_verdict == "false_positive")
+    authorized = sum(1 for a in alerts if a.review_verdict == "authorized_exception")
+    unreviewed = sum(1 for a in alerts if a.review_verdict is None)
+    overdue = sum(1 for a in alerts if _is_overdue(a))
+
+    return DetectionOutcomeSummary(
+        confirmed_threat=confirmed,
+        false_positive=false_positive,
+        authorized_exception=authorized,
+        unreviewed=unreviewed,
+        unreviewed_overdue=overdue,
+        total_flagged=len(alerts),
+    )
 
 @router.post("/sessions/{session_id}/terminate", response_model=TerminateSessionResult)
 def terminate_session(

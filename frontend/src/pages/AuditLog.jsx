@@ -4,7 +4,7 @@ import client from "../api/client";
 function presetRange(days) {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - days);
+  start.setDate(start.getDate() - (days - 1));
   return {
     startDate: start.toISOString().slice(0, 10),
     endDate: end.toISOString().slice(0, 10),
@@ -44,10 +44,14 @@ export default function AuditLog() {
     );
   }
 
-  function buildParams() {
+    function buildParams() {
     const params = new URLSearchParams();
-    if (startDate) params.append("start_date", new Date(startDate).toISOString());
-    if (endDate) params.append("end_date", new Date(endDate).toISOString());
+    if (startDate) {
+      params.append("start_date", new Date(`${startDate}T00:00:00`).toISOString());
+    }
+    if (endDate) {
+      params.append("end_date", new Date(`${endDate}T23:59:59.999`).toISOString());
+    }
     selectedUserIds.forEach((id) => params.append("user_ids", id));
     return params;
   }

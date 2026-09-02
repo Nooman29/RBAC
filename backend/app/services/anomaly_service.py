@@ -119,12 +119,6 @@ def _compute_pattern_signature(features: dict) -> str:
 
 
 def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> bool:
-    """
-    Checks whether this exact suspicious signature has been genuinely flagged
-    for this user before. Only counts REAL (non-simulated) prior alerts, so
-    demo/test runs never count toward this — this rule exists to catch real
-    repeated attacker behavior that baseline drift would otherwise normalize.
-    """
     if signature == "normal":
         return False
 
@@ -133,10 +127,13 @@ def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> 
         .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
         .filter(
             UserSession.user_id == session.user_id,
-            UserSession.simulated_scenario.is_(None),
             AnomalyAlert.session_id != session.session_id,
             AnomalyAlert.is_anomaly.is_(True),
             AnomalyAlert.pattern_signature == signature,
+            or_(
+                AnomalyAlert.review_verdict.is_(None),
+                AnomalyAlert.review_verdict == "confirmed_threat",
+            ),
         )
         .count()
     )

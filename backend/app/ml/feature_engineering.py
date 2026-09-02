@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.models.session import UserSession, AccessLog
 
+from sqlalchemy import or_
+from app.models.anomaly import AnomalyAlert
+
 RAW_FEATURE_COLUMNS = [
     "login_hour",
     "is_offhours",
@@ -106,14 +109,32 @@ def build_user_history_stats(
     repeated simulated sessions — used to demonstrate why the exclusion above
     is necessary. Never used in the normal scoring path.
     """
-    query = db.query(UserSession).filter(
-        UserSession.user_id == user_id,
-        UserSession.session_duration.isnot(None),
+    query = (
+        db.query(UserSession)
+        .outerjoin(AnomalyAlert, AnomalyAlert.session_id == UserSession.session_id)
+        .filter(
+            UserSession.user_id == user_id,
+            UserSession.session_duration.isnot(None),
+        )
     )
     if not include_simulated:
         query = query.filter(UserSession.simulated_scenario.is_(None))
     if exclude_session_id is not None:
         query = query.filter(UserSession.session_id != exclude_session_id)
+
+    # A session only counts toward "normal" baseline behavior if it was never
+    # flagged anomalous, or if a human administrator has explicitly cleared
+    # it as a false positive or an authorized exception. A flagged session
+    # that is unreviewed, or confirmed as a genuine threat, never counts —
+    # this is what prevents an unreviewed repeated attack from quietly
+    # teaching the model to treat it as normal.
+    query = query.filter(
+        or_(
+            AnomalyAlert.alert_id.is_(None),
+            AnomalyAlert.is_anomaly.is_(False),
+            AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
+        )
+    )
 
     other_sessions = query.all()
 
