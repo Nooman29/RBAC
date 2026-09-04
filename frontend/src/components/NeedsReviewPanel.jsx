@@ -24,28 +24,39 @@ export default function NeedsReviewPanel() {
   const ordered = [...overdue, ...rest].slice(0, 6);
 
   return (
-    <div className="panel needs-review-panel">
-      <h3>Needs Your Review</h3>
+    <div className="needs-review-card">
+      <div className="needs-review-header">
+        <h3>Needs Your Review</h3>
+        {alerts.length > 0 && (
+          <span className="needs-review-count">{alerts.length}</span>
+        )}
+      </div>
+
       {alerts.length === 0 ? (
-        <p className="muted">All caught up — no unreviewed anomalies.</p>
+        <p className="needs-review-empty">✓ All caught up — no unreviewed anomalies.</p>
       ) : (
         <>
-          <p className="muted">
-            {alerts.length} unreviewed alert{alerts.length === 1 ? "" : "s"}
-            {overdue.length > 0 && `, ${overdue.length} overdue`}
-          </p>
-          <ul className="needs-review-list">
+          {overdue.length > 0 && (
+            <p className="needs-review-subtext">{overdue.length} overdue for review</p>
+          )}
+          <div className="needs-review-items">
             {ordered.map((a) => (
-              <li key={a.alert_id} className={a.is_overdue ? "review-overdue" : ""}>
-                <Link to={`/alerts/${a.alert_id}`}>
-                  {a.is_overdue && "⚠️ "}
-                  Alert #{a.alert_id} — {a.username} — score {a.anomaly_score.toFixed(3)}
-                </Link>{" "}
-                <span className="muted">({parseUtc(a.alert_timestamp).toLocaleString()})</span>
-              </li>
+              <Link key={a.alert_id} to={`/alerts/${a.alert_id}`} className={`needs-review-item ${a.is_overdue ? "overdue" : ""}`}>
+                <div className="needs-review-item-main">
+                  <span className="needs-review-alert-id">Alert #{a.alert_id}</span>
+                  <span className="needs-review-user">{a.username}</span>
+                  {a.is_overdue && <span className="needs-review-badge">Overdue</span>}
+                </div>
+                <div className="needs-review-item-sub">
+                  <span>Score {a.anomaly_score.toFixed(3)}</span>
+                  <span>{parseUtc(a.alert_timestamp).toLocaleString()}</span>
+                </div>
+              </Link>
             ))}
-          </ul>
-          {alerts.length > 6 && <Link to="/alerts">View all unreviewed alerts →</Link>}
+          </div>
+          {alerts.length > 6 && (
+            <Link to="/alerts" className="needs-review-viewall">View all {alerts.length} unreviewed alerts →</Link>
+          )}
         </>
       )}
     </div>
