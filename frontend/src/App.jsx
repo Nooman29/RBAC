@@ -18,6 +18,7 @@ import SimulateAttack from "./pages/SimulateAttack";
 import DetectionOutcomes from "./pages/DetectionOutcomes";
 import NotificationBell from "./components/NotificationBell";
 import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
+import NavMore from "./components/NavMore";
 import useIdleLogout from "./hooks/useIdleLogout";
 import "./App.css";
 
@@ -29,7 +30,7 @@ function ProtectedRoute({ children }) {
 
 function Layout({ children }) {
   const { logout } = useAuth();
-  const { username, roleName, department, loaded } = usePermissions();
+  const { can, username, roleName, department, loaded } = usePermissions();
   const navigate = useNavigate();
   useIdleLogout();
 
@@ -38,29 +39,44 @@ function Layout({ children }) {
     navigate("/login");
   }
 
+  const showSessions = loaded && can && can("dashboard", "read");
+  const showAlerts = loaded && can && can("dashboard", "read");
+  const showUsers = loaded && can && can("user", "read");
+  const showDetectionOutcomes = loaded && can && can("dashboard", "read");
+  const showAuditLog = loaded && can && can("dashboard", "read");
+  const showRoles = loaded && can && can("role", "read");
+  const showSimulate = loaded && can && can("dashboard", "write");
+
+  const moreItems = [
+    { to: "/roles", label: "Roles", show: showRoles },
+    { to: "/roles-comparison", label: "Compare Roles", show: showRoles },
+    { to: "/simulate-attack", label: "Simulate Attack", show: showSimulate },
+    { to: "/detection-outcomes", label: "Detection Outcomes", show: showDetectionOutcomes },
+    { to: "/audit-log", label: "Audit Log", show: showAuditLog },
+    { to: "/face-id-setup", label: "Face ID Setup", show: true },
+  ];
+
   return (
     <div className="app-shell">
       <PermissionDeniedBanner />
       <nav className="navbar">
-        <span className="brand">RBAC</span>
-        {loaded && (
-          <span className="identity-badge" title={department ? `Department: ${department}` : ""}>
-            {username} · {roleName || "No role"}
-          </span>
-        )}
-        <Link to="/">Dashboard</Link>
-        <Link to="/sessions">Sessions</Link>
-        <Link to="/alerts">Alerts</Link>
-        <Link to="/users">Users</Link>
-        <Link to="/roles">Roles</Link>
-        <Link to="/simulate-attack">Simulate Attack</Link>
-        <Link to="/roles-comparison">Compare Roles</Link>
-        <Link to="/detection-outcomes">Detection Outcomes</Link>
-        <Link to="/audit-log">Audit Log</Link>
-        <Link to="/face-id-setup">Face ID Setup</Link>
-        <NotificationBell />
-        
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        <div className="nav-left">
+          <span className="brand">RBAC</span>
+          <Link to="/">Dashboard</Link>
+          {showSessions && <Link to="/sessions">Sessions</Link>}
+          {showAlerts && <Link to="/alerts">Alerts</Link>}
+          {showUsers && <Link to="/users">Users</Link>}
+          <NavMore items={moreItems} />
+        </div>
+        <div className="nav-right">
+          <NotificationBell />
+          {loaded && (
+            <span className="identity-badge" title={department ? `Department: ${department}` : ""}>
+              {username} · {roleName || "No role"}
+            </span>
+          )}
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        </div>
       </nav>
       <main className="content">{children}</main>
     </div>
