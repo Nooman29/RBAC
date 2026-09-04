@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../context/PermissionsContext";
+import ViewOnlyNotice from "../components/ViewOnlyNotice";
 import client from "../api/client";
 
 const DEPARTMENTS = ["IT", "Finance", "HR", "Operations", "Executive", "Unassigned"];
 
-function roleBadgeClass(roleName) {
-  const slug = roleName.replace(/\s+/g, "-").toLowerCase();
-  return `badge role-badge-${slug}`;
-}
-
 export default function Users() {
+  const { can } = usePermissions();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState("");
@@ -30,7 +28,7 @@ export default function Users() {
     client
       .get("/api/roles/")
       .then((res) => setRoles(res.data))
-      .catch((err) => setError(err.response?.data?.detail || "Failed to load roles."));
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -40,6 +38,7 @@ export default function Users() {
   }, []);
 
   const isAdmin = currentUser?.roles?.some((r) => r.role_name === "Administrator");
+  const canWrite = can && can("user", "write");
 
   function isLastAdmin(user) {
     const isAdminUser = user.roles.some((r) => r.role_name === "Administrator");
@@ -128,50 +127,53 @@ export default function Users() {
       )}
       {error && <p className="error">{error}</p>}
       {info && <p className="info">{info}</p>}
+      <ViewOnlyNotice resource="user" label="user management" />
 
-      <div className="panel">
-        <h3>Create user</h3>
-        <p className="muted">
-          The new user will receive an email to set their own password and enroll sign-in verification.
-          A role is required.
-        </p>
-        <form className="inline-form" onSubmit={handleCreateUser}>
-          <input
-            placeholder="Username"
-            value={newUser.username}
-            onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-            required
-          />
-          <input
-            placeholder="Email"
-            type="email"
-            value={newUser.email}
-            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-            required
-          />
-          <select
-            value={newUser.department}
-            onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
-          >
-            {DEPARTMENTS.filter((d) => d !== "Unassigned").map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <select
-            value={newUser.role_id}
-            onChange={(e) => setNewUser({ ...newUser, role_id: e.target.value })}
-            required
-          >
-            <option value="">Select role… (required)</option>
-            {roles.map((r) => (
-              <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
-            ))}
-          </select>
-          <button type="submit" disabled={creating}>
-            {creating ? "Creating…" : "Create"}
-          </button>
-        </form>
-      </div>
+      {canWrite && (
+        <div className="panel">
+          <h3>Create user</h3>
+          <p className="muted">
+            The new user will receive an email to set their own password and enroll sign-in verification.
+            A role is required.
+          </p>
+          <form className="inline-form" onSubmit={handleCreateUser}>
+            <input
+              placeholder="Username"
+              value={newUser.username}
+              onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+              required
+            />
+            <input
+              placeholder="Email"
+              type="email"
+              value={newUser.email}
+              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              required
+            />
+            <select
+              value={newUser.department}
+              onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
+            >
+              {DEPARTMENTS.filter((d) => d !== "Unassigned").map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <select
+              value={newUser.role_id}
+              onChange={(e) => setNewUser({ ...newUser, role_id: e.target.value })}
+              required
+            >
+              <option value="">Select role… (required)</option>
+              {roles.map((r) => (
+                <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={creating}>
+              {creating ? "Creating…" : "Create"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <table className="data-table">
         <thead>
@@ -226,24 +228,30 @@ export default function Users() {
                 </td>
                 <td>
                   {currentRole ? (
-                    <span className={roleBadgeClass(currentRole.role_name)}>{currentRole.role_name}</span>
+                    <span className="badge">{currentRole.role_name}</span>
                   ) : (
                     <span className="badge badge-warning">No role</span>
                   )}
                 </td>
                 <td>
-                  <select
-                    value={currentRole?.role_id || ""}
-                    onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
-                  >
-                    <option value="" disabled>Select role…</option>
-                    {roles.map((r) => (
-                      <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
-                    ))}
-                  </select>
+                  {canWrite ? (
+                    <select
+                      value={currentRole?.role_id || ""}
+                      onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
+                    >
+                      <option value="" disabled>Select role…</option>
+                      {roles.map((r) => (
+                        <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 <td>
-                  {isSelf ? (
+                  {!canWrite ? (
+                    <span className="muted">—</span>
+                  ) : isSelf ? (
                     <span className="muted">Protected</span>
                   ) : lastAdmin ? (
                     <span className="muted">Protected</span>

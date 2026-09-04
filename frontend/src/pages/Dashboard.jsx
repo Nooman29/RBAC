@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
+import NeedsReviewPanel from "../components/NeedsReviewPanel";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -34,6 +35,7 @@ export default function Dashboard() {
   return (
     <div>
       <h2>Overview</h2>
+      <NeedsReviewPanel />
       <div className="card-grid">
         <div className="stat-card">
           <span className="stat-value">{summary.active_sessions}</span>

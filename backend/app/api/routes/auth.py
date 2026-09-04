@@ -216,15 +216,6 @@ def get_me(current=Depends(get_current_user_and_session), db: Session = Depends(
     user, _ = current
     return user
 
-
-@router.post("/logout")
-def logout(current=Depends(get_current_user_and_session), db: Session = Depends(get_db)):
-    _, session_id = current
-    session = session_service.close_session(db, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"detail": "Logged out", "session_duration": session.session_duration}
-
 @router.get("/my-permissions", response_model=MyPermissionsOut)
 def get_my_permissions(current=Depends(get_current_user_and_session)):
     user, _ = current
@@ -238,3 +229,14 @@ def get_my_permissions(current=Depends(get_current_user_and_session)):
             if role else []
         ),
     )
+
+
+@router.post("/logout")
+def logout(current=Depends(get_current_user_and_session), db: Session = Depends(get_db)):
+    _, session_id = current
+    session = session_service.close_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"detail": "Logged out", "session_duration": session.session_duration}
+
+

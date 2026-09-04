@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import client from "../api/client";
-import { useAuth } from "./authcontext";
+import { useAuth } from "./AuthContext";
 
 const PermissionsContext = createContext(null);
 

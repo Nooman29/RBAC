@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
+import { usePermissions } from "../context/PermissionsContext";
+import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
 export default function Roles() {
+  const { can } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState("");
   const [newRole, setNewRole] = useState({ role_name: "", description: "" });
@@ -38,26 +41,29 @@ export default function Roles() {
     <div>
       <h2>Roles</h2>
       {error && <p className="error">{error}</p>}
+      <ViewOnlyNotice resource="role" label="role management" />
 
-      <div className="panel">
-        <h3>Create role</h3>
-        <form className="inline-form" onSubmit={handleCreateRole}>
-          <input
-            placeholder="Role name"
-            value={newRole.role_name}
-            onChange={(e) => setNewRole({ ...newRole, role_name: e.target.value })}
-            required
-          />
-          <input
-            placeholder="Description"
-            value={newRole.description}
-            onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
-          />
-          <button type="submit" disabled={creating}>
-            {creating ? "Creating…" : "Create"}
-          </button>
-        </form>
-      </div>
+      {can && can("role", "write") && (
+        <div className="panel">
+          <h3>Create role</h3>
+          <form className="inline-form" onSubmit={handleCreateRole}>
+            <input
+              placeholder="Role name"
+              value={newRole.role_name}
+              onChange={(e) => setNewRole({ ...newRole, role_name: e.target.value })}
+              required
+            />
+            <input
+              placeholder="Description"
+              value={newRole.description}
+              onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+            />
+            <button type="submit" disabled={creating}>
+              {creating ? "Creating…" : "Create"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <table className="data-table">
         <thead>

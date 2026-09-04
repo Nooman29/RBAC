@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
+import { usePermissions } from "../context/PermissionsContext";
+import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
 const FEATURE_META = {
   login_hour: { label: "Login hour", describe: (raw) => `Logged in at ${Math.round(raw)}:00.` },
@@ -54,6 +56,7 @@ export default function AlertDetail() {
   const [justSaved, setJustSaved] = useState(false);
   const [terminating, setTerminating] = useState(false);
   const [terminateMsg, setTerminateMsg] = useState("");
+  const { can } = usePermissions();
 
   function load() {
     client
@@ -143,7 +146,7 @@ export default function AlertDetail() {
           <span className="badge badge-neutral">Ended normally — user logged out</span>
         )}
 
-        {alert.session_active && (
+        {alert.session_active && can && can("dashboard", "write") && (
           <button className="danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
             {terminating ? "Terminating…" : "Terminate Session"}
           </button>
@@ -200,46 +203,55 @@ export default function AlertDetail() {
         </tbody>
       </table>
 
-      <h3>Review</h3>
+            <h3>Review</h3>
       {error && <p className="error">{error}</p>}
-      {alert.review_verdict && (
-        <p className="info">Current verdict: <strong>{VERDICT_LABELS[alert.review_verdict]}</strong></p>
+      <ViewOnlyNotice resource="dashboard" label="alert review" />
+      {can && can("dashboard", "write") ? (
+        <>
+          {alert.review_verdict && (
+            <p className="info">Current verdict: <strong>{VERDICT_LABELS[alert.review_verdict]}</strong></p>
+          )}
+          <p className="muted">
+            Choosing a verdict determines whether this session's behavior counts toward this user's future baseline.
+            Confirming a threat (or leaving it unreviewed) keeps it excluded — the system will never treat unconfirmed
+            suspicious behavior as "normal." Marking it a false positive or an authorized exception (e.g. an approved
+            maintenance window) allows it to count as legitimate history going forward.
+          </p>
+          <div className="verdict-options">
+            <label className={`verdict-option ${verdict === "confirmed_threat" ? "verdict-selected" : ""}`}>
+              <input type="radio" name="verdict" value="confirmed_threat" checked={verdict === "confirmed_threat"} onChange={(e) => setVerdict(e.target.value)} />
+              <strong>Confirmed Threat</strong>
+              <p className="muted">This genuinely looks malicious or unauthorized. Stays excluded from this user's baseline.</p>
+            </label>
+            <label className={`verdict-option ${verdict === "false_positive" ? "verdict-selected" : ""}`}>
+              <input type="radio" name="verdict" value="false_positive" checked={verdict === "false_positive"} onChange={(e) => setVerdict(e.target.value)} />
+              <strong>False Positive</strong>
+              <p className="muted">This was actually normal behavior for this user. Will count toward their baseline going forward.</p>
+            </label>
+            <label className={`verdict-option ${verdict === "authorized_exception" ? "verdict-selected" : ""}`}>
+              <input type="radio" name="verdict" value="authorized_exception" checked={verdict === "authorized_exception"} onChange={(e) => setVerdict(e.target.value)} />
+              <strong>Authorized Exception</strong>
+              <p className="muted">Unusual, but approved (e.g. a scheduled maintenance window). Will count toward their baseline going forward.</p>
+            </label>
+          </div>
+          <textarea
+            rows={4}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes on this alert…"
+          />
+          <div>
+            <button onClick={handleSaveVerdict} disabled={saving || justSaved}>
+              {justSaved ? "Saved ✓" : saving ? "Saving…" : "Save Verdict"}
+            </button>
+            {justSaved && <span className="info"> Updated — returning to alerts…</span>}
+          </div>
+        </>
+      ) : (
+        alert.review_verdict && (
+          <p className="info">Verdict: <strong>{VERDICT_LABELS[alert.review_verdict]}</strong>{alert.notes ? ` — ${alert.notes}` : ""}</p>
+        )
       )}
-      <p className="muted">
-        Choosing a verdict determines whether this session's behavior counts toward this user's future baseline.
-        Confirming a threat (or leaving it unreviewed) keeps it excluded — the system will never treat unconfirmed
-        suspicious behavior as "normal." Marking it a false positive or an authorized exception (e.g. an approved
-        maintenance window) allows it to count as legitimate history going forward.
-      </p>
-      <div className="verdict-options">
-        <label className={`verdict-option ${verdict === "confirmed_threat" ? "verdict-selected" : ""}`}>
-          <input type="radio" name="verdict" value="confirmed_threat" checked={verdict === "confirmed_threat"} onChange={(e) => setVerdict(e.target.value)} />
-          <strong>Confirmed Threat</strong>
-          <p className="muted">This genuinely looks malicious or unauthorized. Stays excluded from this user's baseline.</p>
-        </label>
-        <label className={`verdict-option ${verdict === "false_positive" ? "verdict-selected" : ""}`}>
-          <input type="radio" name="verdict" value="false_positive" checked={verdict === "false_positive"} onChange={(e) => setVerdict(e.target.value)} />
-          <strong>False Positive</strong>
-          <p className="muted">This was actually normal behavior for this user. Will count toward their baseline going forward.</p>
-        </label>
-        <label className={`verdict-option ${verdict === "authorized_exception" ? "verdict-selected" : ""}`}>
-          <input type="radio" name="verdict" value="authorized_exception" checked={verdict === "authorized_exception"} onChange={(e) => setVerdict(e.target.value)} />
-          <strong>Authorized Exception</strong>
-          <p className="muted">Unusual, but approved (e.g. a scheduled maintenance window). Will count toward their baseline going forward.</p>
-        </label>
-      </div>
-      <textarea
-        rows={4}
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes on this alert…"
-      />
-      <div>
-        <button onClick={handleSaveVerdict} disabled={saving || justSaved}>
-          {justSaved ? "Saved ✓" : saving ? "Saving…" : "Save Verdict"}
-        </button>
-        {justSaved && <span className="info"> Updated — returning to alerts…</span>}
-      </div>
     </div>
   );
 }

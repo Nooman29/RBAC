@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
+import { usePermissions } from "../context/PermissionsContext";
+import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
 export default function Sessions() {
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const { can } = usePermissions();
 
   function load() {
     client
@@ -36,6 +39,7 @@ export default function Sessions() {
       <p className="muted">
         Users currently logged in. Terminating a session logs the user out immediately and scores it for anomalies.
       </p>
+      <ViewOnlyNotice resource="dashboard" label="sessions" />
       <button className="secondary-btn" onClick={load}>Refresh</button>
       {error && <p className="error">{error}</p>}
 
@@ -54,14 +58,18 @@ export default function Sessions() {
               <td>{s.username}</td>
               <td>{parseUtc(s.login_time).toLocaleString()}</td>
               <td>{s.access_location || "unknown"}</td>
-              <td>
-                <button
-                  className="danger-btn"
-                  onClick={() => handleTerminate(s.session_id)}
-                  disabled={busyId === s.session_id}
-                >
-                  {busyId === s.session_id ? "Terminating…" : "Terminate"}
-                </button>
+                            <td>
+                {can && can("dashboard", "write") ? (
+                  <button
+                    className="danger-btn"
+                    onClick={() => handleTerminate(s.session_id)}
+                    disabled={busyId === s.session_id}
+                  >
+                    {busyId === s.session_id ? "Terminating…" : "Terminate"}
+                  </button>
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </td>
             </tr>
           ))}

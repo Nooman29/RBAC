@@ -393,3 +393,10 @@ textarea {
 .badge-danger { background: #f8d7da; color: #842029; }
 .badge-online { background: #d4edda; color: #1e7b34; }
 .badge-neutral { background: #e2e3e5; color: #41464b; }
+
+.identity-badge { font-size: 0.8rem; color: #555; background: #f2f2f2; padding: 4px 10px; border-radius: 12px; margin-right: 8px; }
+.view-only-badge { background: #eef2f7; color: #445; padding: 6px 10px; border-radius: 6px; display: inline-block; margin: 6px 0 12px 0; font-size: 0.85rem; }
+.needs-review-panel { margin-bottom: 20px; }
+.needs-review-list { list-style: none; padding: 0; margin: 8px 0; }
+.needs-review-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.needs-review-list li.review-overdue { color: #b26a00; font-weight: 600; }
