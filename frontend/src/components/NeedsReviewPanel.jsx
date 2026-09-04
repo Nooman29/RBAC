@@ -9,14 +9,14 @@ export default function NeedsReviewPanel() {
   const [alerts, setAlerts] = useState(null);
 
   useEffect(() => {
-    if (!loaded || !can || !can("dashboard", "read")) return;
+    if (!loaded || !can || !can("dashboard", "write")) return;
     client
       .get("/api/dashboard/alerts", { params: { only_anomalous: true, include_reviewed: false } })
       .then((res) => setAlerts(res.data))
       .catch(() => setAlerts(null));
   }, [loaded]);
 
-  if (!loaded || !can || !can("dashboard", "read")) return null;
+  if (!loaded || !can || !can("dashboard", "write")) return null;
   if (alerts === null) return null;
 
   const overdue = alerts.filter((a) => a.is_overdue);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
+import { usePermissions } from "../context/PermissionsContext";
 
 export default function SimulateAttack() {
   const [users, setUsers] = useState([]);
@@ -13,15 +14,16 @@ export default function SimulateAttack() {
   const [result, setResult] = useState(null);
   const [resetMessage, setResetMessage] = useState("");
   const [error, setError] = useState("");
+  const { can, loaded } = usePermissions();
 
-  useEffect(() => {
+   useEffect(() => {
+    if (!loaded || !(can && can("dashboard", "write"))) return;
     client.get("/api/users/").then((res) => setUsers(res.data)).catch(() => {});
     client
       .get("/api/dashboard/simulate-attack/scenarios")
       .then((res) => setScenarios(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load scenarios"));
-  }, []);
-  const [fullResetting, setFullResetting] = useState(false);
+  }, [loaded]);
 
   async function handleFullReset() {
     if (!selectedUser) return;
@@ -83,6 +85,15 @@ export default function SimulateAttack() {
 
   const showDriftNudge =
     result && !result.injected && demoMode === "naive" && result.is_anomaly === false;
+
+    if (loaded && !(can && can("dashboard", "write"))) {
+    return (
+      <div>
+        <h2>Simulate an Attack</h2>
+        <p className="muted">This feature requires dashboard write access, which your role does not have.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
