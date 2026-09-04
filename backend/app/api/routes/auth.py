@@ -16,7 +16,7 @@ from app.core.security import (
 )
 from app.core.rbac import get_current_user_and_session
 from app.services import session_service, biometric_service, otp_service
-
+from app.schemas.user import MyPermissionsOut, PermissionPair
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
@@ -224,3 +224,17 @@ def logout(current=Depends(get_current_user_and_session), db: Session = Depends(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"detail": "Logged out", "session_duration": session.session_duration}
+
+@router.get("/my-permissions", response_model=MyPermissionsOut)
+def get_my_permissions(current=Depends(get_current_user_and_session)):
+    user, _ = current
+    role = user.roles[0] if user.roles else None
+    return MyPermissionsOut(
+        username=user.username,
+        role_name=role.role_name if role else None,
+        department=user.department,
+        permissions=(
+            [PermissionPair(resource_name=p.resource_name, action_type=p.action_type) for p in role.permissions]
+            if role else []
+        ),
+    )

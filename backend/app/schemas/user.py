@@ -48,3 +48,14 @@ class RoleDetail(RoleOut):
 
 class SetRoleRequest(BaseModel):
     role_id: int
+
+class PermissionPair(BaseModel):
+    resource_name: str
+    action_type: str
+
+
+class MyPermissionsOut(BaseModel):
+    username: str
+    role_name: Optional[str] = None
+    department: str
+    permissions: List[PermissionPair] = []
