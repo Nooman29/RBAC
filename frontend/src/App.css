@@ -55,24 +55,7 @@ body {
 
 .app-shell { min-height: 100vh; }
 
-.navbar {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-}
 
-.navbar .brand { font-weight: 700; margin-right: auto; }
-.navbar a { text-decoration: none; color: #374151; }
-.logout-btn {
-  border: none;
-  background: #f3f4f6;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
 
 .content { padding: 2rem; max-width: 1100px; margin: 0 auto; }
 
@@ -338,28 +321,7 @@ textarea {
 .status-active { color: #2e7d32; font-weight: 600; }
 .status-pending { color: #b26a00; font-weight: 600; margin-right: 6px; }
 
-.navbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-  row-gap: 8px;
-  padding: 10px 16px;
-}
-.navbar .brand {
-  font-weight: 700;
-  margin-right: 8px;
-}
-.navbar a {
-  white-space: nowrap;
-}
-.navbar .notif-bell {
-  margin-left: auto;
-  order: 98;
-}
-.navbar .logout-btn {
-  order: 99;
-}
+
 .badge-warning { background: #fff3cd; color: #856404; }
 .role-badge-administrator { background: #d9534f; color: white; }
 .role-badge-manager { background: #f0ad4e; color: white; }
@@ -394,9 +356,57 @@ textarea {
 .badge-online { background: #d4edda; color: #1e7b34; }
 .badge-neutral { background: #e2e3e5; color: #41464b; }
 
-.identity-badge { font-size: 0.8rem; color: #555; background: #f2f2f2; padding: 4px 10px; border-radius: 12px; margin-right: 8px; }
-.view-only-badge { background: #eef2f7; color: #445; padding: 6px 10px; border-radius: 6px; display: inline-block; margin: 6px 0 12px 0; font-size: 0.85rem; }
 .needs-review-panel { margin-bottom: 20px; }
 .needs-review-list { list-style: none; padding: 0; margin: 8px 0; }
 .needs-review-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
 .needs-review-list li.review-overdue { color: #b26a00; font-weight: 600; }
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  flex-wrap: wrap;
+}
+.nav-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  row-gap: 8px;
+}
+.nav-left .brand { font-weight: 700; margin-right: 6px; }
+.nav-left a { white-space: nowrap; }
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.nav-more { position: relative; }
+.nav-more-btn {
+  background: none; border: none; cursor: pointer; font-size: 0.95rem; color: inherit;
+  padding: 0;
+}
+.nav-more-dropdown {
+  position: absolute; top: 130%; left: 0; background: white; border: 1px solid #ddd;
+  border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); min-width: 180px; z-index: 100;
+  display: flex; flex-direction: column; padding: 6px 0;
+}
+.nav-more-dropdown a { padding: 8px 14px; text-decoration: none; color: inherit; }
+.nav-more-dropdown a:hover { background: #f5f5f5; }
+
+.identity-badge {
+  font-size: 0.8rem; color: #555; background: #f2f2f2; padding: 4px 10px;
+  border-radius: 12px; white-space: nowrap;
+}
+
+.view-only-notice {
+  display: flex; align-items: center; gap: 8px;
+  background: #eef2f7; color: #3d4a5c; border-left: 3px solid #7b93b0;
+  padding: 8px 12px; border-radius: 4px; margin: 8px 0 14px 0; font-size: 0.85rem;
+}
+.view-only-icon { font-size: 1rem; }

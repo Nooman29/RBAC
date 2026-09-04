@@ -21,6 +21,63 @@ import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 import NavMore from "./components/NavMore";
 import useIdleLogout from "./hooks/useIdleLogout";
 import "./App.css";
+import { NavLink } from "react-router-dom";
+
+function Layout({ children }) {
+  const { logout } = useAuth();
+  const { can, username, roleName, department, loaded } = usePermissions();
+  const navigate = useNavigate();
+  useIdleLogout();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login");
+  }
+
+  const links = [
+    { to: "/", label: "Dashboard", show: true, end: true },
+    { to: "/sessions", label: "Sessions", show: loaded && can && can("dashboard", "read") },
+    { to: "/alerts", label: "Alerts", show: loaded && can && can("dashboard", "read") },
+    { to: "/users", label: "Users", show: loaded && can && can("user", "read") },
+    { to: "/roles", label: "Roles", show: loaded && can && can("role", "read") },
+    { to: "/roles-comparison", label: "Compare Roles", show: loaded && can && can("role", "read") },
+    { to: "/simulate-attack", label: "Simulate Attack", show: loaded && can && can("dashboard", "write") },
+    { to: "/detection-outcomes", label: "Detection Outcomes", show: loaded && can && can("dashboard", "read") },
+    { to: "/audit-log", label: "Audit Log", show: loaded && can && can("dashboard", "read") },
+    { to: "/face-id-setup", label: "Face ID Setup", show: true },
+  ];
+
+  return (
+    <div className="app-shell">
+      <PermissionDeniedBanner />
+      <nav className="navbar">
+        <div className="nav-left">
+          <span className="brand">RBAC Admin</span>
+          {links.filter((l) => l.show).map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              end={l.end}
+              className={({ isActive }) => `nav-tab${isActive ? " nav-tab-active" : ""}`}
+            >
+              {l.label}
+            </NavLink>
+          ))}
+        </div>
+        <div className="nav-right">
+          <NotificationBell />
+          {loaded && (
+            <span className="identity-badge" title={department ? `Department: ${department}` : ""}>
+              {username} · {roleName || "No role"}
+            </span>
+          )}
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        </div>
+      </nav>
+      <main className="content">{children}</main>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }) {
   const { token } = useAuth();

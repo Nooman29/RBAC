@@ -4,6 +4,7 @@ import client from "../api/client";
 import { usePermissions } from "../context/PermissionsContext";
 
 export default function SimulateAttack() {
+  const { can, loaded } = usePermissions();
   const [users, setUsers] = useState([]);
   const [scenarios, setScenarios] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
@@ -11,12 +12,12 @@ export default function SimulateAttack() {
   const [demoMode, setDemoMode] = useState("isolated");
   const [running, setRunning] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [fullResetting, setFullResetting] = useState(false);
   const [result, setResult] = useState(null);
   const [resetMessage, setResetMessage] = useState("");
   const [error, setError] = useState("");
-  const { can, loaded } = usePermissions();
 
-   useEffect(() => {
+  useEffect(() => {
     if (!loaded || !(can && can("dashboard", "write"))) return;
     client.get("/api/users/").then((res) => setUsers(res.data)).catch(() => {});
     client
@@ -24,25 +25,6 @@ export default function SimulateAttack() {
       .then((res) => setScenarios(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load scenarios"));
   }, [loaded]);
-
-  async function handleFullReset() {
-    if (!selectedUser) return;
-    const confirmed = window.confirm(
-      "This wipes ALL session history for this user — real and simulated. Use only on demo/test accounts. Continue?"
-    );
-    if (!confirmed) return;
-    setError("");
-    setFullResetting(true);
-    try {
-      const res = await client.delete(`/api/dashboard/simulate-attack/full-reset/${selectedUser}`);
-      setResult(null);
-      setResetMessage(`Full reset: wiped ${res.data.deleted_sessions} session(s) entirely for this user.`);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Full reset failed");
-    } finally {
-      setFullResetting(false);
-    }
-  }
 
   async function handleRun() {
     if (!selectedUser || !selectedScenario) return;
@@ -73,7 +55,7 @@ export default function SimulateAttack() {
       setResult(null);
       setResetMessage(
         res.data.deleted_sessions > 0
-          ? `Cleared ${res.data.deleted_sessions} simulated session(s) and their alerts. This user's baseline is back to their real history only.`
+          ? `Cleared ${res.data.deleted_sessions} simulated session(s) and their alerts.`
           : "No simulated sessions found for this user — nothing to clear."
       );
     } catch (err) {
@@ -83,10 +65,26 @@ export default function SimulateAttack() {
     }
   }
 
-  const showDriftNudge =
-    result && !result.injected && demoMode === "naive" && result.is_anomaly === false;
+  async function handleFullReset() {
+    if (!selectedUser) return;
+    const confirmed = window.confirm(
+      "This wipes ALL session history for this user — real and simulated. Use only on demo/test accounts. Continue?"
+    );
+    if (!confirmed) return;
+    setError("");
+    setFullResetting(true);
+    try {
+      const res = await client.delete(`/api/dashboard/simulate-attack/full-reset/${selectedUser}`);
+      setResult(null);
+      setResetMessage(`Full reset: wiped ${res.data.deleted_sessions} session(s) entirely for this user.`);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Full reset failed");
+    } finally {
+      setFullResetting(false);
+    }
+  }
 
-    if (loaded && !(can && can("dashboard", "write"))) {
+  if (loaded && !(can && can("dashboard", "write"))) {
     return (
       <div>
         <h2>Simulate an Attack</h2>
@@ -94,6 +92,9 @@ export default function SimulateAttack() {
       </div>
     );
   }
+
+  const showDriftNudge =
+    result && !result.injected && demoMode === "naive" && result.is_anomaly === false;
 
   return (
     <div>
@@ -137,8 +138,7 @@ export default function SimulateAttack() {
           <strong>Naive (demonstration only)</strong>
           <p className="muted">
             Simulated sessions ARE folded into the baseline. Run the same scenario on the same user
-            twice in a row and watch the second attempt score lower — the model starts treating the
-            repeated behavior as normal for that user.
+            twice in a row and watch the second attempt score lower.
           </p>
         </label>
       </div>
@@ -159,23 +159,14 @@ export default function SimulateAttack() {
         </div>
 
         <div className="reset-row">
-          <button
-            onClick={handleFullReset}
-            disabled={!selectedUser || fullResetting}
-            className="danger reset-btn"
-          >
+          <button onClick={handleReset} disabled={!selectedUser || resetting} className="secondary reset-btn">
+            {resetting ? "Clearing…" : "Clear simulated history"}
+          </button>
+          <button onClick={handleFullReset} disabled={!selectedUser || fullResetting} className="danger reset-btn">
             {fullResetting ? "Wiping…" : "Full reset (wipe ALL history)"}
           </button>
-          <button
-            onClick={handleReset}
-            disabled={!selectedUser || resetting}
-            className="secondary reset-btn"
-          >
-            {resetting ? "Clearing…" : "Clear simulated history for this user"}
-          </button>
           <span className="muted reset-hint">
-            Removes all past simulated sessions for the selected user, restoring their baseline to
-            real activity only. Do this before switching from Naive back to Isolated mode.
+            "Clear simulated" removes only test sessions. "Full reset" wipes everything for this user, including real history.
           </span>
         </div>
       </div>
@@ -202,16 +193,11 @@ export default function SimulateAttack() {
       {result && (
         <div className={`panel result-panel ${result.is_anomaly ? "result-flagged" : "result-clear"}`}>
           <h3>{result.is_anomaly ? "⚠️ Anomaly Detected" : "No Anomaly Flagged"}</h3>
-          <p>
-            Scenario: <strong>{result.scenario_label}</strong> ({result.demo_mode} mode)
-          </p>
-          <p>
-            User: <strong>{result.username}</strong> — Session #{result.session_id}
-          </p>
+          <p>Scenario: <strong>{result.scenario_label}</strong> ({result.demo_mode} mode)</p>
+          <p>User: <strong>{result.username}</strong> — Session #{result.session_id}</p>
           {result.anomaly_score !== null && (
             <p>Anomaly score: <strong>{result.anomaly_score.toFixed(4)}</strong></p>
           )}
-
           {result.is_anomaly && (
             <p>
               Detection method:{" "}
@@ -221,8 +207,7 @@ export default function SimulateAttack() {
                   : "Statistical anomaly (ML model)"}
               </strong>
             </p>
-          )} 
-            
+          )}
           {result.alert_id && (
             <Link to={`/alerts/${result.alert_id}`}>View full alert & SHAP explanation &rarr;</Link>
           )}
@@ -231,10 +216,9 @@ export default function SimulateAttack() {
             <div className="drift-nudge">
               <strong>This is the baseline drift in action.</strong>
               <p>
-                In Naive mode, this repeated attack got folded into the user's "normal" baseline from
-                an earlier run, so the model no longer sees it as unusual. Click "Clear simulated
-                history" above, then switch to Isolated mode and run it again — it will flag
-                consistently because simulated sessions never touch the baseline in that mode.
+                In Naive mode, this repeated attack got folded into the user's baseline from an earlier
+                run. Click "Clear simulated history," switch to Isolated mode, and run it again — it
+                will flag consistently.
               </p>
             </div>
           )}
