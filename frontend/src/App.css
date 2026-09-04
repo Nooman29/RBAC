@@ -356,48 +356,6 @@ textarea {
 .badge-online { background: #d4edda; color: #1e7b34; }
 .badge-neutral { background: #e2e3e5; color: #41464b; }
 
-.needs-review-panel { margin-bottom: 20px; }
-.needs-review-list { list-style: none; padding: 0; margin: 8px 0; }
-.needs-review-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
-.needs-review-list li.review-overdue { color: #b26a00; font-weight: 600; }
-
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 16px;
-  flex-wrap: wrap;
-}
-.nav-left {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  row-gap: 8px;
-}
-.nav-left .brand { font-weight: 700; margin-right: 6px; }
-.nav-left a { white-space: nowrap; }
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.nav-more { position: relative; }
-.nav-more-btn {
-  background: none; border: none; cursor: pointer; font-size: 0.95rem; color: inherit;
-  padding: 0;
-}
-.nav-more-dropdown {
-  position: absolute; top: 130%; left: 0; background: white; border: 1px solid #ddd;
-  border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); min-width: 180px; z-index: 100;
-  display: flex; flex-direction: column; padding: 6px 0;
-}
-.nav-more-dropdown a { padding: 8px 14px; text-decoration: none; color: inherit; }
-.nav-more-dropdown a:hover { background: #f5f5f5; }
 
 .identity-badge {
   font-size: 0.8rem; color: #555; background: #f2f2f2; padding: 4px 10px;
@@ -410,3 +368,100 @@ textarea {
   padding: 8px 12px; border-radius: 4px; margin: 8px 0 14px 0; font-size: 0.85rem;
 }
 .view-only-icon { font-size: 1rem; }
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+}
+.nav-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: 8px;
+}
+.nav-left .brand { font-weight: 700; margin-right: 10px; color: #1a1a1a; }
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: 20px;
+  text-decoration: none;
+  color: #4b5563;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-tab:hover { background: #f0f4ff; color: #2563eb; }
+.nav-tab-active { background: #2563eb; color: white; font-weight: 600; }
+.nav-tab-active:hover { background: #1d4ed8; color: white; }
+
+.identity-badge {
+  font-size: 0.8rem; color: #555; background: #f2f2f2; padding: 4px 10px;
+  border-radius: 12px; white-space: nowrap;
+}
+
+/* Needs Review card */
+.needs-review-card {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.needs-review-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.needs-review-header h3 { margin: 0; }
+.needs-review-count {
+  background: #dc2626; color: white; font-size: 0.75rem; font-weight: 700;
+  border-radius: 999px; padding: 2px 9px;
+}
+.needs-review-subtext { color: #b26a00; font-size: 0.85rem; margin: 4px 0 10px 0; font-weight: 600; }
+.needs-review-empty { color: #059669; font-weight: 500; margin: 8px 0 0 0; }
+
+.needs-review-items { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.needs-review-item {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.needs-review-item:hover { background: #f9fafb; border-color: #d1d5db; }
+.needs-review-item.overdue { border-left: 3px solid #b26a00; background: #fffaf0; }
+
+.needs-review-item-main { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.9rem; }
+.needs-review-alert-id { color: #1a1a1a; }
+.needs-review-user { color: #6b7280; font-weight: 400; }
+.needs-review-badge {
+  background: #fff3cd; color: #856404; font-size: 0.7rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px; margin-left: auto;
+}
+
+.needs-review-item-sub {
+  display: flex; justify-content: space-between; margin-top: 4px;
+  font-size: 0.78rem; color: #9ca3af;
+}
+
+.needs-review-viewall {
+  display: inline-block; margin-top: 10px; color: #2563eb; font-size: 0.85rem; text-decoration: none;
+}
+.needs-review-viewall:hover { text-decoration: underline; }
