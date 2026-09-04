@@ -5,8 +5,9 @@ export default function ViewOnlyNotice({ resource, label }) {
   if (!loaded || !can) return null;
   if (can(resource, "write")) return null;
   return (
-    <p className="view-only-badge">
-      👁 View only — your role has read-only access to {label || resource}.
-    </p>
+    <div className="view-only-notice">
+      <span className="view-only-icon">👁</span>
+      <span>You have <strong>view-only</strong> access to {label || resource}. Changes are not available for your role.</span>
+    </div>
   );
 }
