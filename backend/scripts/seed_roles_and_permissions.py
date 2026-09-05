@@ -34,7 +34,9 @@ ROLE_POLICIES = {
         "dashboard": ["read"],   # can monitor sessions/alerts, cannot review/manage
         "user": ["read"],        # can view the team, cannot create/modify
     },
-    "Standard User": {},
+        "Standard User": {
+        "dashboard": ["read"],   # self-scoped only — sees their own sessions/alerts, never others'
+    },
 }
 
 ROLE_DESCRIPTIONS = {

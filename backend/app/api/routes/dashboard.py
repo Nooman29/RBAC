@@ -1,11 +1,10 @@
 import json
 from datetime import datetime, timedelta
 from collections import defaultdict
-from typing import List
+from typing import List, Optional
 
 import csv
 import io
-from typing import Optional
 from fastapi.responses import StreamingResponse
 from app.models.session import AccessLog
 
@@ -15,11 +14,12 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.core.rbac import require_permission
 from app.core.config import settings
+from app.core.constants import REVIEW_VERDICTS
 from app.models.session import UserSession
 from app.models.user import User
 from app.models.role import Role
 from app.models.anomaly import AnomalyAlert
-from app.services import anomaly_service
+from app.services import anomaly_service, attack_simulation_service
 from app.schemas.dashboard import (
     DashboardSummary,
     AnomalyAlertSummary,
@@ -27,18 +27,69 @@ from app.schemas.dashboard import (
     AlertReviewUpdate,
     SessionOut,
     TerminateSessionResult,
+    ScenarioOut,
+    SimulateAttackRequest,
+    SimulateAttackResult,
+    DetectionOutcomeSummary,
+    AuditLogEntryOut,
 )
-from app.services import attack_simulation_service
-from app.schemas.dashboard import ScenarioOut, SimulateAttackRequest, SimulateAttackResult, AuditLogEntryOut
-# detection review outcome to fix baseline drift
-from app.core.constants import REVIEW_VERDICTS
-from app.schemas.dashboard import DetectionOutcomeSummary
-
-
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 OVERDUE_HOURS = 24
+
+
+def _visibility_scope(current_user: User) -> dict:
+    """
+    Three-tier visibility for all dashboard-family data:
+      - Administrator -> sees everything: {"level": "all"}
+      - Manager       -> sees their own department only:
+                         {"level": "department", "department": <dept>}
+      - Everyone else (Standard User) -> sees only their own activity:
+                         {"level": "self", "user_id": <id>}
+    """
+    role_names = {r.role_name for r in current_user.roles}
+    if "Administrator" in role_names:
+        return {"level": "all"}
+    if "Manager" in role_names:
+        return {"level": "department", "department": current_user.department}
+    return {"level": "self", "user_id": current_user.user_id}
+
+
+def _apply_visibility(query, scope: dict):
+    """Applies the scope to any query already joined against the User table."""
+    if scope["level"] == "all":
+        return query
+    if scope["level"] == "department":
+        return query.filter(User.department == scope["department"])
+    return query.filter(User.user_id == scope["user_id"])
+
+
+def _in_scope(user: Optional[User], scope: dict) -> bool:
+    if scope["level"] == "all":
+        return True
+    if user is None:
+        return False
+    if scope["level"] == "department":
+        return user.department == scope["department"]
+    return user.user_id == scope["user_id"]
+
+
+def _assert_alert_in_scope(alert: AnomalyAlert, scope: dict):
+    session = alert.session
+    user = session.user if session else None
+    if not _in_scope(user, scope):
+        if scope["level"] == "department":
+            raise HTTPException(status_code=403, detail="This alert belongs to a different department.")
+        raise HTTPException(status_code=403, detail="This alert does not belong to your account.")
+
+
+def _assert_session_in_scope(session: UserSession, scope: dict):
+    user = session.user
+    if not _in_scope(user, scope):
+        if scope["level"] == "department":
+            raise HTTPException(status_code=403, detail="This session belongs to a different department.")
+        raise HTTPException(status_code=403, detail="This session does not belong to your account.")
 
 
 def _is_overdue(alert: AnomalyAlert) -> bool:
@@ -47,37 +98,7 @@ def _is_overdue(alert: AnomalyAlert) -> bool:
     return (datetime.utcnow() - alert.alert_timestamp) > timedelta(hours=OVERDUE_HOURS)
 
 
-def _department_scope(current_user: User) -> str | None:
-    role_names = {r.role_name for r in current_user.roles}
-    if "Administrator" in role_names:
-        return None
-    return current_user.department
-
-
-def _assert_alert_in_scope(alert: AnomalyAlert, dept: str | None):
-    if dept is None:
-        return
-    session = alert.session
-    user = session.user if session else None
-    if user is None or user.department != dept:
-        raise HTTPException(status_code=403, detail="This alert belongs to a different department.")
-
-
-def _assert_session_in_scope(session: UserSession, dept: str | None):
-    if dept is None:
-        return
-    user = session.user
-    if user is None or user.department != dept:
-        raise HTTPException(status_code=403, detail="This session belongs to a different department.")
-
-
 def _auto_close_stale_sessions(db: Session):
-    """
-    Sessions whose access token has expired but was never explicitly logged
-    out (tab closed, browser crashed, etc.) stay 'active' in the DB forever
-    otherwise. Close them lazily whenever sessions are queried, and score
-    them like any other closed session.
-    """
     cutoff_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
     threshold = datetime.utcnow() - timedelta(minutes=cutoff_minutes)
 
@@ -110,16 +131,14 @@ def get_summary(
     db: Session = Depends(get_db),
 ):
     _auto_close_stale_sessions(db)
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
 
     session_q = db.query(UserSession).join(User, UserSession.user_id == User.user_id)
-    if dept:
-        session_q = session_q.filter(User.department == dept)
+    session_q = _apply_visibility(session_q, scope)
     active_sessions = session_q.filter(UserSession.logout_time.is_(None)).count()
 
     user_q = db.query(User)
-    if dept:
-        user_q = user_q.filter(User.department == dept)
+    user_q = _apply_visibility(user_q, scope)
     total_users = user_q.count()
 
     roles_configured = db.query(Role).count()
@@ -130,8 +149,7 @@ def get_summary(
         .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
         .join(User, UserSession.user_id == User.user_id)
     )
-    if dept:
-        alert_q = alert_q.filter(User.department == dept)
+    alert_q = _apply_visibility(alert_q, scope)
     alerts_today = alert_q.filter(
         AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= today_start
     ).count()
@@ -151,7 +169,7 @@ def list_alerts(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
 
     query = db.query(AnomalyAlert)
     if only_anomalous:
@@ -165,7 +183,7 @@ def list_alerts(
     for alert in alerts:
         session = alert.session
         user = session.user if session else None
-        if dept and (user is None or user.department != dept):
+        if not _in_scope(user, scope):
             continue
         results.append(
             AnomalyAlertSummary(
@@ -176,10 +194,11 @@ def list_alerts(
                 department=user.department if user else None,
                 anomaly_score=alert.anomaly_score,
                 is_anomaly=alert.is_anomaly,
-                alert_timestamp=alert.alert_timestamp,
-                reviewed=alert.reviewed,
+                detection_reason=alert.detection_reason,
                 review_verdict=alert.review_verdict,
                 is_overdue=_is_overdue(alert),
+                alert_timestamp=alert.alert_timestamp,
+                reviewed=alert.reviewed,
             )
         )
     return results
@@ -199,6 +218,9 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         department=user.department if user else None,
         anomaly_score=alert.anomaly_score,
         is_anomaly=alert.is_anomaly,
+        detection_reason=alert.detection_reason,
+        review_verdict=alert.review_verdict,
+        is_overdue=_is_overdue(alert),
         alert_timestamp=alert.alert_timestamp,
         reviewed=alert.reviewed,
         reviewed_by=alert.reviewed_by,
@@ -210,8 +232,7 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         session_duration=session.session_duration if session else None,
         access_location=session.access_location if session else None,
         session_terminated=session.terminated if session else False,
-        review_verdict=alert.review_verdict,
-        is_overdue=_is_overdue(alert),
+        session_active=(session.logout_time is None and not session.terminated) if session else False,
     )
 
 
@@ -224,10 +245,10 @@ def get_alert_detail(
     alert = db.query(AnomalyAlert).filter(AnomalyAlert.alert_id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    _assert_alert_in_scope(alert, _department_scope(current_user))
+    _assert_alert_in_scope(alert, _visibility_scope(current_user))
     return _build_alert_detail(alert)
 
-#update alert
+
 @router.patch("/alerts/{alert_id}", response_model=AnomalyAlertDetail)
 def update_alert(
     alert_id: int,
@@ -238,7 +259,7 @@ def update_alert(
     alert = db.query(AnomalyAlert).filter(AnomalyAlert.alert_id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    _assert_alert_in_scope(alert, _department_scope(current_user))
+    _assert_alert_in_scope(alert, _visibility_scope(current_user))
 
     if payload.review_verdict is not None:
         if payload.review_verdict not in REVIEW_VERDICTS:
@@ -258,38 +279,6 @@ def update_alert(
     db.refresh(alert)
     return _build_alert_detail(alert)
 
-@router.get("/detection-outcomes", response_model=DetectionOutcomeSummary)
-def get_detection_outcomes(
-    current_user: User = Depends(require_permission("dashboard", "read")),
-    db: Session = Depends(get_db),
-):
-    dept = _department_scope(current_user)
-
-    query = (
-        db.query(AnomalyAlert)
-        .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
-        .join(User, UserSession.user_id == User.user_id)
-        .filter(AnomalyAlert.is_anomaly.is_(True))
-    )
-    if dept:
-        query = query.filter(User.department == dept)
-
-    alerts = query.all()
-
-    confirmed = sum(1 for a in alerts if a.review_verdict == "confirmed_threat")
-    false_positive = sum(1 for a in alerts if a.review_verdict == "false_positive")
-    authorized = sum(1 for a in alerts if a.review_verdict == "authorized_exception")
-    unreviewed = sum(1 for a in alerts if a.review_verdict is None)
-    overdue = sum(1 for a in alerts if _is_overdue(a))
-
-    return DetectionOutcomeSummary(
-        confirmed_threat=confirmed,
-        false_positive=false_positive,
-        authorized_exception=authorized,
-        unreviewed=unreviewed,
-        unreviewed_overdue=overdue,
-        total_flagged=len(alerts),
-    )
 
 @router.post("/sessions/{session_id}/terminate", response_model=TerminateSessionResult)
 def terminate_session(
@@ -300,7 +289,7 @@ def terminate_session(
     session = db.query(UserSession).filter(UserSession.session_id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _assert_session_in_scope(session, _department_scope(current_user))
+    _assert_session_in_scope(session, _visibility_scope(current_user))
 
     was_active = session.logout_time is None
     session.terminated = True
@@ -335,11 +324,10 @@ def list_sessions(
     db: Session = Depends(get_db),
 ):
     _auto_close_stale_sessions(db)
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
 
     query = db.query(UserSession).join(User, UserSession.user_id == User.user_id)
-    if dept:
-        query = query.filter(User.department == dept)
+    query = _apply_visibility(query, scope)
     if active_only:
         query = query.filter(UserSession.logout_time.is_(None))
     sessions = query.order_by(UserSession.login_time.desc()).limit(100).all()
@@ -367,7 +355,7 @@ def alerts_over_time(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
     start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -377,8 +365,7 @@ def alerts_over_time(
         .join(User, UserSession.user_id == User.user_id)
         .filter(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= start)
     )
-    if dept:
-        query = query.filter(User.department == dept)
+    query = _apply_visibility(query, scope)
 
     counts = defaultdict(int)
     for a in query.all():
@@ -397,15 +384,14 @@ def session_activity(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
     start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
     query = db.query(UserSession).join(User, UserSession.user_id == User.user_id).filter(
         UserSession.login_time >= start
     )
-    if dept:
-        query = query.filter(User.department == dept)
+    query = _apply_visibility(query, scope)
 
     counts = defaultdict(int)
     for s in query.all():
@@ -416,6 +402,7 @@ def session_activity(
          "sessions": counts.get((start + timedelta(days=i)).date().isoformat(), 0)}
         for i in range(days)
     ]
+
 
 @router.get("/simulate-attack/scenarios", response_model=List[ScenarioOut])
 def get_scenarios(
@@ -448,6 +435,7 @@ def reset_simulated_data_route(
     deleted = attack_simulation_service.reset_simulated_data(db, user_id)
     return {"deleted_sessions": deleted}
 
+
 @router.delete("/simulate-attack/full-reset/{user_id}")
 def full_reset_user_route(
     user_id: int,
@@ -457,6 +445,40 @@ def full_reset_user_route(
     deleted = attack_simulation_service.full_reset_user_history(db, user_id)
     return {"deleted_sessions": deleted}
 
+
+@router.get("/detection-outcomes", response_model=DetectionOutcomeSummary)
+def get_detection_outcomes(
+    current_user: User = Depends(require_permission("dashboard", "read")),
+    db: Session = Depends(get_db),
+):
+    scope = _visibility_scope(current_user)
+
+    query = (
+        db.query(AnomalyAlert)
+        .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+        .filter(AnomalyAlert.is_anomaly.is_(True))
+    )
+    query = _apply_visibility(query, scope)
+
+    alerts = query.all()
+
+    confirmed = sum(1 for a in alerts if a.review_verdict == "confirmed_threat")
+    false_positive = sum(1 for a in alerts if a.review_verdict == "false_positive")
+    authorized = sum(1 for a in alerts if a.review_verdict == "authorized_exception")
+    unreviewed = sum(1 for a in alerts if a.review_verdict is None)
+    overdue = sum(1 for a in alerts if _is_overdue(a))
+
+    return DetectionOutcomeSummary(
+        confirmed_threat=confirmed,
+        false_positive=false_positive,
+        authorized_exception=authorized,
+        unreviewed=unreviewed,
+        unreviewed_overdue=overdue,
+        total_flagged=len(alerts),
+    )
+
+
 @router.get("/audit-log/preview", response_model=List[AuditLogEntryOut])
 def preview_audit_log(
     start_date: Optional[datetime] = Query(None),
@@ -465,15 +487,14 @@ def preview_audit_log(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
 
     query = (
         db.query(AccessLog)
         .join(UserSession, AccessLog.session_id == UserSession.session_id)
         .join(User, UserSession.user_id == User.user_id)
     )
-    if dept:
-        query = query.filter(User.department == dept)
+    query = _apply_visibility(query, scope)
     if start_date:
         query = query.filter(AccessLog.access_timestamp >= start_date)
     if end_date:
@@ -505,71 +526,20 @@ def export_audit_log(
     current_user: User = Depends(require_permission("dashboard", "read")),
     db: Session = Depends(get_db),
 ):
-    dept = _department_scope(current_user)
+    scope = _visibility_scope(current_user)
 
     query = (
         db.query(AccessLog)
         .join(UserSession, AccessLog.session_id == UserSession.session_id)
         .join(User, UserSession.user_id == User.user_id)
     )
-    if dept:
-        query = query.filter(User.department == dept)
+    query = _apply_visibility(query, scope)
     if start_date:
         query = query.filter(AccessLog.access_timestamp >= start_date)
     if end_date:
         query = query.filter(AccessLog.access_timestamp <= end_date)
     if user_ids:
         query = query.filter(UserSession.user_id.in_(user_ids))
-
-    logs = query.order_by(AccessLog.access_timestamp.desc()).all()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["log_id", "timestamp", "username", "department", "session_id", "resource_name", "action_performed"])
-    for log in logs:
-        session = log.session
-        user = session.user if session else None
-        writer.writerow([
-            log.log_id,
-            log.access_timestamp.isoformat(),
-            user.username if user else "unknown",
-            user.department if user else "unknown",
-            log.session_id,
-            log.resource_name,
-            log.action_performed,
-        ])
-
-    filename = f"audit_log_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-@router.get("/audit-log/export")
-def export_audit_log(
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
-    user_ids: Optional[List[int]] = Query(None),
-    current_user: User = Depends(require_permission("dashboard", "read")),
-    db: Session = Depends(get_db),
-):
-    dept = _department_scope(current_user)
-
-    query = (
-        db.query(AccessLog)
-        .join(UserSession, AccessLog.session_id == UserSession.session_id)
-        .join(User, UserSession.user_id == User.user_id)
-    )
-    if dept:
-        query = query.filter(User.department == dept)
-    if start_date:
-        query = query.filter(AccessLog.access_timestamp >= start_date)
-    if end_date:
-        query = query.filter(AccessLog.access_timestamp <= end_date)
-    if user_id:
-        query = query.filter(UserSession.user_id == user_id)
 
     logs = query.order_by(AccessLog.access_timestamp.desc()).all()
 
