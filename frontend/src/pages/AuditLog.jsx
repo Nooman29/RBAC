@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
+import { usePermissions } from "../context/PermissionsContext";
 
 function presetRange(days) {
   const end = new Date();
@@ -21,10 +22,14 @@ export default function AuditLog() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const { can, loaded } = usePermissions();
 
-  useEffect(() => {
-    client.get("/api/users/").then((res) => setUsers(res.data)).catch(() => {});
-  }, []);
+    useEffect(() => {
+    if (!loaded) return;
+    if (can && can("user", "read")) {
+      client.get("/api/users/").then((res) => setUsers(res.data)).catch(() => {});
+    }
+  }, [loaded]);
 
   function applyPreset(days) {
     const { startDate: s, endDate: e } = presetRange(days);
@@ -118,21 +123,24 @@ export default function AuditLog() {
           </label>
         </div>
 
-        <div className="user-picker">
-          <p className="muted">Filter by user (leave empty for all):</p>
-          <div className="user-checklist">
-            {users.map((u) => (
-              <label key={u.user_id} className="user-check-item">
-                <input
-                  type="checkbox"
-                  checked={selectedUserIds.includes(u.user_id)}
-                  onChange={() => toggleUser(u.user_id)}
-                />
-                {u.username} ({u.department})
-              </label>
-            ))}
+        {can && can("user", "read") && (
+          <div className="user-picker">
+            <p className="muted">Filter by user (leave empty for all):</p>
+            <div className="user-checklist">
+              {users.map((u) => (
+                <label key={u.user_id} className="user-check-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.includes(u.user_id)}
+                    onChange={() => toggleUser(u.user_id)}
+                  />
+                  {u.username} ({u.department})
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+          
 
         <div className="inline-form">
           <button onClick={handlePreview} disabled={loading}>
