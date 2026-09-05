@@ -22,6 +22,7 @@ import joblib
 import numpy as np
 import shap
 from sqlalchemy.orm import Session as DBSession
+from sqlalchemy import or_
 
 from app.core.config import settings
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
