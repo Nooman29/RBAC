@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import FaceCapture from "../components/FaceCapture";
 import { useLocation } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 export default function Login() {
   const { loginWithPassword, requestOtp, verifyOtp, verifyFace } = useAuth();
@@ -123,6 +124,9 @@ export default function Login() {
             />
             {error && <p className="error">{error}</p>}
             <button type="submit">Continue</button>
+            <Link to="/forgot-password" className="muted" style={{ display: "block", textAlign: "center", marginTop: 10 }}>
+              Forgot password?
+            </Link>
           </form>
         )}
 

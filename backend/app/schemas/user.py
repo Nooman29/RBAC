@@ -59,3 +59,11 @@ class MyPermissionsOut(BaseModel):
     role_name: Optional[str] = None
     department: str
     permissions: List[PermissionPair] = []
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

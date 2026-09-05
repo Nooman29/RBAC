@@ -22,6 +22,8 @@ import NavMore from "./components/NavMore";
 import useIdleLogout from "./hooks/useIdleLogout";
 import "./App.css";
 import { NavLink } from "react-router-dom";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function Layout({ children }) {
   const { logout } = useAuth();
@@ -102,6 +104,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/setup-password" element={<SetupPassword />} />
           <Route path="/first-time-setup" element={<FirstTimeSetup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Wrapped><Dashboard /></Wrapped>} />
           <Route path="/sessions" element={<Wrapped><Sessions /></Wrapped>} />
           <Route path="/alerts" element={<Wrapped><Alerts /></Wrapped>} />

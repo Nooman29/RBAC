@@ -19,6 +19,11 @@ from app.services import session_service, biometric_service, otp_service
 from app.schemas.user import MyPermissionsOut, PermissionPair
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+import secrets
+from datetime import timedelta
+from app.schemas.user import ForgotPasswordRequest, ResetPasswordRequest
+from app.services import password_reset_service
+
 
 class PendingTokenResponse(BaseModel):
     status: str
@@ -239,4 +244,40 @@ def logout(current=Depends(get_current_user_and_session), db: Session = Depends(
         raise HTTPException(status_code=404, detail="Session not found")
     return {"detail": "Logged out", "session_duration": session.session_duration}
 
+RESET_TOKEN_EXPIRE_HOURS = 1
 
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+
+    # Always return the same response whether or not the email exists —
+    # never reveal which emails are registered to an anonymous requester.
+    if user and user.password_set:
+        reset_token = secrets.token_urlsafe(32)
+        user.password_reset_token = reset_token
+        user.password_reset_expires = datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_EXPIRE_HOURS)
+        db.commit()
+        password_reset_service.send_reset_email(user, reset_token)
+
+    return {"detail": "If an account exists with that email, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.password_reset_token == payload.token).first()
+    if not user or user.password_reset_expires is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Request a new one.")
+
+    expires = user.password_reset_expires
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Request a new one.")
+
+    user.password = hash_password(payload.new_password)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+    db.commit()
+
+    return {"detail": "Password reset successfully. You can now log in."}

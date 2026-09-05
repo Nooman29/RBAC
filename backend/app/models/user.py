@@ -27,3 +27,6 @@ class User(Base):
     biometric_choice_made = Column(Boolean, default=True, nullable=False)
 
     department = Column(String(50), default="Unassigned", nullable=False)
+
+    password_reset_token = Column(String(255), nullable=True, unique=True)
+    password_reset_expires = Column(DateTime, nullable=True)
