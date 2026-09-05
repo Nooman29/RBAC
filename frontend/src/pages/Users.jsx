@@ -7,7 +7,6 @@ import client from "../api/client";
 const DEPARTMENTS = ["IT", "Finance", "HR", "Operations", "Executive", "Unassigned"];
 
 export default function Users() {
-  const { can } = usePermissions();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState("");
@@ -16,6 +15,7 @@ export default function Users() {
   const [creating, setCreating] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const { fetchMe } = useAuth();
+  const { can, loaded } = usePermissions();
 
   function loadUsers() {
     client
@@ -33,9 +33,15 @@ export default function Users() {
 
   useEffect(() => {
     loadUsers();
-    loadRoles();
     fetchMe().then((me) => setCurrentUser(me)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (can && can("role", "read")) {
+      loadRoles()
+    }
+  }, [loaded]);
 
   const isAdmin = currentUser?.roles?.some((r) => r.role_name === "Administrator");
   const canWrite = can && can("user", "write");
