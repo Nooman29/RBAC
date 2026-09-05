@@ -21,7 +21,7 @@ export default function NeedsReviewPanel() {
 
   const overdue = alerts.filter((a) => a.is_overdue);
   const rest = alerts.filter((a) => !a.is_overdue);
-  const ordered = [...overdue, ...rest].slice(0, 6);
+  const ordered = [...overdue, ...rest].slice(0, 4);
 
   return (
     <div className="needs-review-card">
