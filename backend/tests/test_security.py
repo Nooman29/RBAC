@@ -31,6 +31,14 @@ def test_tampered_access_token_is_rejected():
         security.decode_access_token(tampered)
 
 
+def test_expired_access_token_is_rejected(monkeypatch):
+    monkeypatch.setattr(security.settings, "ACCESS_TOKEN_EXPIRE_MINUTES", -1)
+    token = security.create_access_token({"sub": "7", "sid": "42"})
+
+    with pytest.raises(JWTError):
+        security.decode_access_token(token)
+
+
 def test_pending_token_accepts_only_its_own_scope():
     token = security.create_pending_token(5)
 
