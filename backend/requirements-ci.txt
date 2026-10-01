@@ -1,0 +1,15 @@
+# Lightweight dependency set for CI test runs (excludes DeepFace/TensorFlow/torch, which tests do not import).
+fastapi==0.141.1
+SQLAlchemy==2.0.51
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+pydantic-settings==2.14.2
+email-validator==2.3.0
+passlib==1.7.4
+bcrypt==4.0.1
+python-jose==3.5.0
+numpy==2.1.3
+scikit-learn==1.5.2
+joblib==1.4.2
+shap==0.51.0
+pytest==8.3.3
