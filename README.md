@@ -53,9 +53,21 @@ docker compose ps
 
 | Service  | URL                          |
 |----------|------------------------------|
-| Frontend | http://localhost:5173        |
-| API docs | http://localhost:8000/docs   |
-| Health   | http://localhost:8000/health |
+| Frontend | http://127.0.0.1:5173        |
+| API docs | http://127.0.0.1:8000/docs   |
+| Health   | http://127.0.0.1:8000/health |
+
+Use the explicit IPv4 loopback address above if `localhost` hangs on your machine.
+Set `FRONTEND_URL=http://127.0.0.1:5173` in both backend environment files so
+welcome, password-reset, and anomaly-alert emails use the same frontend address.
+For a remote deployment, set `FRONTEND_URL` to the actual public frontend URL;
+loopback links only work on the machine running the application.
+
+Backend startup logs show the frontend URL and local Swagger URL. Uvicorn's
+`0.0.0.0:8000` message is a bind address, not a browser link, and must remain
+unchanged in Docker. Internal Docker service names (`db` and `backend`) are also
+unchanged. CORS accepts the configured frontend URL and both local loopback
+origins to preserve existing local clients.
 
 First-time data setup:
 
@@ -81,6 +93,10 @@ cd frontend
 npm ci
 npm run dev
 ```
+
+Vite serves local development at `http://127.0.0.1:5173` and fails explicitly
+if that port is occupied, keeping email links aligned with the frontend.
+Its preview server also uses `127.0.0.1` (default preview port: 4173).
 
 ## 4. Run tests
 
