@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.db.database import get_db, Base, engine
+from app.core.config import settings
 from app import models
 from app.api.routes import users, roles, auth, dashboard
 from app.models import anomaly
@@ -31,7 +32,11 @@ def preload_biometric_models():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite's default dev server port
+    allow_origins=[
+        settings.FRONTEND_URL.rstrip("/"),
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,3 +58,6 @@ def health(db: Session = Depends(get_db)):
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    logger = logging.getLogger(__name__)
+    logger.info("Frontend (browser URL): %s", settings.FRONTEND_URL)
+    logger.info("Swagger UI (local browser URL): http://127.0.0.1:8000/docs")
