@@ -1,0 +1,285 @@
+/* Dashboard shell (sidebar + top bar) and shared UI for the Integrations page.
+   Imported after App.css. Every class is prefixed ds- so existing page styles are untouched. */
+
+:root {
+  --ds-navy-900: #0f172a;
+  --ds-navy-800: #172238;
+  --ds-accent: #4f7cff;
+  --ds-bg: #f4f6fb;
+  --ds-surface: #ffffff;
+  --ds-border: #e3e8f1;
+  --ds-text: #1c2536;
+  --ds-muted: #6b768a;
+  --ds-success: #178a52;
+  --ds-danger: #d64545;
+  --ds-sidebar-w: 248px;
+}
+
+/* ---- shell ------------------------------------------------------------ */
+.ds-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--ds-bg);
+  color: var(--ds-text);
+}
+
+.ds-sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--ds-sidebar-w);
+  background: linear-gradient(180deg, var(--ds-navy-900), var(--ds-navy-800));
+  color: #cbd5e6;
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  overflow-y: auto;
+}
+
+.ds-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 14px;
+}
+.ds-brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--ds-accent);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.ds-brand-name { color: #fff; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; }
+.ds-brand-sub { font-size: 0.72rem; color: #8fa0bd; }
+
+.ds-nav { flex: 1; padding: 4px 10px 12px; }
+.ds-nav-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #6f82a3;
+  padding: 16px 10px 6px;
+}
+.ds-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  color: #cbd5e6;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+.ds-nav-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.ds-nav-item.active {
+  background: rgba(79, 124, 255, 0.2);
+  color: #fff;
+  box-shadow: inset 3px 0 0 var(--ds-accent);
+}
+.ds-icon { flex-shrink: 0; }
+
+.ds-user {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ds-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2b3a5c;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.ds-user-meta { min-width: 0; flex: 1; }
+.ds-user-name { color: #fff; font-size: 0.86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-user-role { color: #8fa0bd; font-size: 0.74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-logout {
+  background: none;
+  border: none;
+  color: #9fb0cc;
+  cursor: pointer;
+  padding: 7px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+}
+.ds-logout:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+.ds-main {
+  margin-left: var(--ds-sidebar-w);
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ds-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 58px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ds-border);
+}
+.ds-menu-btn {
+  display: none;
+  background: none;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  padding: 6px;
+  color: var(--ds-text);
+  cursor: pointer;
+  place-items: center;
+}
+.ds-crumb { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--ds-muted); }
+.ds-crumb strong { color: var(--ds-text); font-weight: 600; }
+.ds-crumb-sep { opacity: 0.5; }
+.ds-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+.ds-content {
+  padding: 24px;
+  width: 100%;
+  max-width: 1360px;
+  box-sizing: border-box;
+  color: var(--ds-text);
+}
+.ds-content h2 { margin-top: 0; }
+
+.ds-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 35; }
+
+@media (max-width: 900px) {
+  .ds-sidebar { transform: translateX(-100%); transition: transform 0.2s ease; }
+  .ds-sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, 0.4); }
+  .ds-main { margin-left: 0; }
+  .ds-menu-btn { display: grid; }
+  .ds-topbar { padding: 0 14px; }
+  .ds-content { padding: 16px; }
+}
+
+/* ---- shared controls (Integrations page) ------------------------------ */
+.ds-btn {
+  border: 1px solid var(--ds-border);
+  background: #fff;
+  color: var(--ds-text);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ds-btn:hover { background: #f2f5fb; }
+.ds-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ds-btn-primary { background: var(--ds-accent); border-color: var(--ds-accent); color: #fff; }
+.ds-btn-primary:hover { background: #3f68e0; }
+.ds-btn-danger { color: var(--ds-danger); border-color: #f1c5c5; }
+.ds-btn-danger:hover { background: #fdf1f1; }
+.ds-btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+
+.ds-input,
+.ds-select {
+  padding: 8px 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: #fff;
+  color: var(--ds-text);
+  box-sizing: border-box;
+}
+.ds-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.ds-field label { font-size: 0.8rem; font-weight: 600; color: var(--ds-muted); }
+
+.ds-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ds-border); margin-bottom: 18px; flex-wrap: wrap; }
+.ds-tab {
+  background: none;
+  border: none;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ds-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.ds-tab:hover { color: var(--ds-text); }
+.ds-tab.active { color: var(--ds-accent); border-bottom-color: var(--ds-accent); }
+
+.ds-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.ds-card h3 { margin: 0 0 6px; font-size: 1rem; }
+
+.ds-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3d56b8;
+  font-size: 0.74rem;
+  font-weight: 600;
+  margin: 2px 4px 2px 0;
+}
+.ds-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 600; }
+.ds-pill-ok { background: #e4f6ec; color: var(--ds-success); }
+.ds-pill-bad { background: #fde9e9; color: var(--ds-danger); }
+.ds-pill-off { background: #eceff4; color: var(--ds-muted); }
+
+.ds-scope-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 8px 0 14px; }
+.ds-scope-opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  background: #fff;
+}
+.ds-scope-opt.on { border-color: var(--ds-accent); background: #f3f6ff; }
+
+.ds-secret { border: 1px solid #f0d98a; background: #fff9e6; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+.ds-secret h3 { margin: 0 0 4px; }
+.ds-secret-row { display: flex; gap: 8px; align-items: center; margin: 6px 0 10px; }
+.ds-secret code {
+  flex: 1;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #ead9a0;
+  border-radius: 8px;
+  word-break: break-all;
+  font-size: 0.84rem;
+}
+
+.ds-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: grid; place-items: center; z-index: 60; padding: 16px; }
+.ds-modal { background: #fff; border-radius: 14px; padding: 22px; width: min(560px, 100%); max-height: 90vh; overflow: auto; }
+.ds-modal h3 { margin-top: 0; }
+.ds-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+.ds-table-wrap { overflow-x: auto; }
+.ds-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.ds-pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: var(--ds-muted); font-size: 0.85rem; }
+.ds-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8rem; }
+.ds-empty { padding: 28px; text-align: center; color: var(--ds-muted); }
+.ds-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
