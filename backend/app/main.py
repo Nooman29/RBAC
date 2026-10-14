@@ -5,10 +5,15 @@ from sqlalchemy import text
 
 from app.db.database import get_db, Base, engine
 from app.core.config import settings
+from app.core.rate_limit import limit_sensitive_auth
 from app import models
-from app.api.routes import users, roles, auth, dashboard
+from app.api.routes import users, roles, auth, dashboard, service_clients
+from app.api.v1.app import v1_app
 from app.models import anomaly
+from app.models import guardian  # noqa: F401  (registers the guardian_links table)
+from app.models import service_client  # noqa: F401  (registers service_clients + authz_audit_logs)
 from app.api.routes import notifications
+from app.db.migrations import apply_dsfs_pass1_schema
 
 import logging
 
@@ -42,11 +47,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
+# Browser-facing routes (user JWT). The router-level dependency rate-limits the
+# sensitive auth endpoints per client IP and ignores every other path.
+app.include_router(auth.router, dependencies=[Depends(limit_sensitive_auth)])
 app.include_router(users.router)
 app.include_router(roles.router)
 app.include_router(dashboard.router)
 app.include_router(notifications.router)
+app.include_router(service_clients.router)
+
+# Integration API for other DSFS modules (service-client credentials).
+# Mounted as a sub-app so it has its own docs (/api/v1/docs) and error format.
+app.mount("/api/v1", v1_app)
 
 
 @app.get("/health")
@@ -58,6 +70,8 @@ def health(db: Session = Depends(get_db)):
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    apply_dsfs_pass1_schema(engine)
     logger = logging.getLogger(__name__)
     logger.info("Frontend (browser URL): %s", settings.FRONTEND_URL)
     logger.info("Swagger UI (local browser URL): http://127.0.0.1:8000/docs")
+    logger.info("Integration API docs: http://127.0.0.1:8000/api/v1/docs")
