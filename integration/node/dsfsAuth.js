@@ -1,9 +1,14 @@
 // Drop-in client for the DSFS central auth service (Node 18+, uses built-in fetch).
 //
-//   const { requirePermission } = require('./dsfsAuth');
+//   const { requirePermission, reportEvents } = require('./dsfsAuth');
 //   app.get('/schools/:schoolId/attendance',
 //     requirePermission('attendance', 'read', req => ({ school_id: req.params.schoolId })),
 //     (req, res) => res.json({ userId: req.auth.user_id }));
+//
+//   // Report meaningful business actions (not one per row) so they feed anomaly detection:
+//   await reportEvents(userToken, [
+//     { resource: 'payment', action: 'approve', entity_ref: 'pay-9', details: { amount: 5000 } },
+//   ]);
 //
 // Environment: DSFS_AUTH_URL, DSFS_CLIENT_ID, DSFS_CLIENT_SECRET
 
@@ -40,6 +45,17 @@ async function check(token, resource, action, context = {}) {
   throw new Error(`authz check failed: ${status} ${JSON.stringify(data)}`);
 }
 
+// Report 1-100 events about what the user did. Needs the 'events:write' scope.
+// Returns { recorded, not_permitted, ... } or { recorded: 0, reason: 'token_inactive' }.
+async function reportEvents(token, events) {
+  const { status, data } = await post('/events', { token, events });
+  if (status === 201) return data;
+  if (status === 401 && data.error && data.error.code === 'token_inactive') {
+    return { recorded: 0, reason: 'token_inactive' };
+  }
+  throw new Error(`reportEvents failed: ${status} ${JSON.stringify(data)}`);
+}
+
 // Express middleware factory. contextFn(req) -> context object (school_id, student_id, ...).
 function requirePermission(resource, action, contextFn) {
   return async (req, res, next) => {
@@ -61,4 +77,4 @@ function requirePermission(resource, action, contextFn) {
   };
 }
 
-module.exports = { introspect, check, requirePermission };
+module.exports = { introspect, check, reportEvents, requirePermission };
