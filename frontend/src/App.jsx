@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider, usePermissions } from "./context/PermissionsContext";
 import Login from "./pages/Login";
@@ -16,67 +17,70 @@ import AuditLog from "./pages/AuditLog";
 import FaceEnroll from "./pages/FaceEnroll";
 import SimulateAttack from "./pages/SimulateAttack";
 import DetectionOutcomes from "./pages/DetectionOutcomes";
-import NotificationBell from "./components/NotificationBell";
-import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
-import NavMore from "./components/NavMore";
-import useIdleLogout from "./hooks/useIdleLogout";
-import "./App.css";
-import { NavLink } from "react-router-dom";
+import Integrations from "./pages/Integrations";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import NotificationBell from "./components/NotificationBell";
+import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
+import Sidebar, { Icon, buildNavGroups } from "./components/Sidebar";
+import useIdleLogout from "./hooks/useIdleLogout";
+import "./App.css";
+import "./layout.css";
+
+// Longest matching nav entry for the current path -> breadcrumb.
+function findCrumb(pathname, groups) {
+  let best = null;
+  for (const group of groups) {
+    for (const item of group.items) {
+      const match = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to + "/"));
+      if (match && (!best || item.to.length > best.item.to.length)) {
+        best = { group: group.label, item };
+      }
+    }
+  }
+  return best;
+}
 
 function Layout({ children }) {
-  const { logout } = useAuth();
-  const { can, username, roleName, department, loaded } = usePermissions();
-  const navigate = useNavigate();
+  const { can, loaded } = usePermissions();
+  const { pathname } = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   useIdleLogout();
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
-  const links = [
-    { to: "/", label: "Dashboard", show: true, end: true },
-    { to: "/sessions", label: "Sessions", show: loaded && can && can("dashboard", "read") },
-    { to: "/alerts", label: "Alerts", show: loaded && can && can("dashboard", "read") },
-    { to: "/users", label: "Users", show: loaded && can && can("user", "read") },
-    { to: "/roles", label: "Roles", show: loaded && can && can("role", "read") },
-    { to: "/roles-comparison", label: "Compare Roles", show: loaded && can && can("role", "read") },
-    { to: "/simulate-attack", label: "Simulate Attack", show: loaded && can && can("dashboard", "write") },
-    { to: "/detection-outcomes", label: "Detection Outcomes", show: loaded && can && can("dashboard", "read") },
-    { to: "/audit-log", label: "Audit Log", show: loaded && can && can("dashboard", "read") },
-    { to: "/face-id-setup", label: "Face ID Setup", show: true },
-  ];
+  const crumb = findCrumb(pathname, buildNavGroups(can, loaded));
 
   return (
-    <div className="app-shell">
-      <PermissionDeniedBanner />
-      <nav className="navbar">
-        <div className="nav-left">
-          <span className="brand">RBAC</span>
-          {links.filter((l) => l.show).map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.end}
-              className={({ isActive }) => `nav-tab${isActive ? " nav-tab-active" : ""}`}
-            >
-              {l.label}
-            </NavLink>
-          ))}
-        </div>
-        <div className="nav-right">
-          <NotificationBell />
-          {loaded && (
-            <span className="identity-badge" title={department ? `Department: ${department}` : ""}>
-              {username} · {roleName || "No role"}
-            </span>
+    <div className="ds-shell">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {sidebarOpen && <div className="ds-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      <div className="ds-main">
+        <PermissionDeniedBanner />
+        <header className="ds-topbar">
+          <button
+            className="ds-menu-btn"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Icon name="menu" size={20} />
+          </button>
+          {crumb && (
+            <div className="ds-crumb">
+              <span>{crumb.group}</span>
+              <span className="ds-crumb-sep">/</span>
+              <strong>{crumb.item.label}</strong>
+            </div>
           )}
-          <button className="logout-btn" onClick={handleLogout}>Logout</button>
-        </div>
-      </nav>
-      <main className="content">{children}</main>
+          <div className="ds-topbar-right">
+            <NotificationBell />
+          </div>
+        </header>
+        <main className="ds-content">{children}</main>
+      </div>
     </div>
   );
 }
@@ -86,7 +90,6 @@ function ProtectedRoute({ children }) {
   if (!token) return <Navigate to="/login" replace />;
   return children;
 }
-
 
 function Wrapped({ children }) {
   return (
@@ -117,6 +120,7 @@ function App() {
           <Route path="/detection-outcomes" element={<Wrapped><DetectionOutcomes /></Wrapped>} />
           <Route path="/simulate-attack" element={<Wrapped><SimulateAttack /></Wrapped>} />
           <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
+          <Route path="/integrations" element={<Wrapped><Integrations /></Wrapped>} />
           <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />
         </Routes>
       </PermissionsProvider>
