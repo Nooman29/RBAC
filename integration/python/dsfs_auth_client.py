@@ -20,10 +20,15 @@ Drop-in client for the DSFS central auth service. Requires: pip install requests
         )),
     ):
         return {"user_id": decision["user_id"], ...}
+
+    # Report meaningful business actions (not one per row) so they feed anomaly detection:
+    auth.report_events(user_token, [
+        {"resource": "payment", "action": "approve", "entity_ref": "pay-9", "details": {"amount": 5000}},
+    ])
 """
 
 import time
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 import requests
 
@@ -48,6 +53,13 @@ class DsfsAuthClient:
         except requests.RequestException as exc:
             raise DsfsAuthError(f"Auth service unreachable: {exc}") from exc
 
+    @staticmethod
+    def _error_code(resp: requests.Response) -> Optional[str]:
+        try:
+            return (resp.json().get("error") or {}).get("code")
+        except ValueError:
+            return None
+
     def introspect(self, token: str) -> dict:
         """Returns {'active': bool, ...user, roles, permissions when active}."""
         cached = self._cache.get(token)
@@ -68,10 +80,23 @@ class DsfsAuthClient:
         })
         if resp.status_code == 200:
             return resp.json()
-        error = (resp.json().get("error", {}) if resp.headers.get("content-type", "").startswith("application/json") else {})
-        if resp.status_code == 401 and error.get("code") == "token_inactive":
+        if resp.status_code == 401 and self._error_code(resp) == "token_inactive":
             return {"allowed": False, "reason": "token_inactive", "user_id": None, "roles": []}
         raise DsfsAuthError(f"authz check failed: {resp.status_code} {resp.text}")
+
+    def report_events(self, token: str, events: List[dict]) -> dict:
+        """
+        Report what the user did (1-100 events). Returns {'recorded': n, ...}, or
+        {'recorded': 0, 'reason': 'token_inactive'} when the user's session is over.
+        Each event: {'resource', 'action', 'entity_ref'?, 'occurred_at'?, 'details'?}.
+        Needs the 'events:write' scope.
+        """
+        resp = self._post("/events", {"token": token, "events": events})
+        if resp.status_code == 201:
+            return resp.json()
+        if resp.status_code == 401 and self._error_code(resp) == "token_inactive":
+            return {"recorded": 0, "reason": "token_inactive"}
+        raise DsfsAuthError(f"report_events failed: {resp.status_code} {resp.text}")
 
 
 def require_permission(client: DsfsAuthClient, resource: str, action: str,

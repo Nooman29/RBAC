@@ -6,4 +6,6 @@ SERVICE_SCOPES = {
     "roles:read": "List roles and their permissions",
     "users:read": "List and read users and their guardian links",
     "users:write": "Create users, update school/organisation, set role, manage guardian links",
+    "events:write": "Report user activity so it feeds anomaly detection",
+    "events:read": "Read reported activity events (for fraud detection and reporting)",
 }
