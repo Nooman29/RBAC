@@ -1,0 +1,45 @@
+.rm-toolbar { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin: 14px 0; }
+.rm-toolbar label { font-size: 0.85rem; color: #4b5563; display: flex; align-items: center; gap: 6px; }
+.rm-roles-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.rm-role-toggle {
+  border: 1px solid #d5dbe6;
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 0.78rem;
+  background: #fff;
+  color: #4b5563;
+  cursor: pointer;
+}
+.rm-role-toggle.on { background: #eef2ff; border-color: #4f7cff; color: #2d46a8; font-weight: 600; }
+
+.rm-scroll { max-height: 72vh; overflow: auto; border: 1px solid #e3e8f1; border-radius: 10px; background: #fff; }
+.rm-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+.rm-table th,
+.rm-table td { padding: 8px 12px; border-bottom: 1px solid #eef1f6; white-space: nowrap; font-size: 0.85rem; }
+.rm-table thead th { position: sticky; top: 0; background: #f9fafb; z-index: 3; text-align: center; vertical-align: bottom; }
+.rm-table .rm-first { position: sticky; left: 0; background: #fff; z-index: 2; text-align: left; min-width: 190px; }
+.rm-table thead th.rm-first { z-index: 4; background: #f9fafb; }
+.rm-scope { display: block; margin-top: 2px; font-size: 0.68rem; font-weight: 500; color: #8a94a8; text-transform: uppercase; letter-spacing: 0.05em; }
+.rm-group td {
+  position: sticky;
+  left: 0;
+  background: #f3f6fd;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #3d4a68;
+}
+.rm-group-tag { margin-left: 8px; font-weight: 500; color: #8a94a8; text-transform: none; letter-spacing: 0; }
+.rm-table tbody tr:not(.rm-group):hover td { background: #f8faff; }
+.rm-table tbody tr:not(.rm-group):hover td.rm-first { background: #f8faff; }
+.rm-action { padding-left: 8px; color: #374151; }
+
+.rm-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 18px; margin: 6px 0 0; font-size: 0.85rem; }
+.rm-legend dt { font-weight: 700; color: #1f2937; display: inline; }
+.rm-legend dd { display: inline; margin: 0 0 0 4px; color: #6b7280; }
+
+.rm-role-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rm-perm-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 6px 0; font-size: 0.85rem; }
+.rm-perm-res { min-width: 170px; color: #374151; font-weight: 600; }
+.rm-empty { padding: 28px; text-align: center; color: #6b7280; }

@@ -6,6 +6,7 @@ class RoleOut(BaseModel):
     role_id: int
     role_name: str
     description: Optional[str] = None
+    scope: str = "own"
     model_config = ConfigDict(from_attributes=True)
 
 class UserCreate(BaseModel):
@@ -23,6 +24,8 @@ class UserOut(BaseModel):
     is_biometric_enrolled: bool = False
     password_set: bool = True
     department: str = "Unassigned"
+    school_id: Optional[str] = None
+    organization_id: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class UpdateDepartmentRequest(BaseModel):
