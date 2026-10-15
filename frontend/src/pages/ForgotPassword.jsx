@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
+import AuthShell from "../components/AuthShell";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -23,33 +24,33 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1>Forgot Password</h1>
-        {submitted ? (
-          <div>
-            <p className="info">If an account exists with that email, a reset link has been sent. Check your inbox.</p>
-            <Link to="/login">Back to login</Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            {error && <p className="error">{error}</p>}
-            <button type="submit" disabled={busy}>
-              {busy ? "Sending…" : "Send Reset Link"}
-            </button>
-            <Link to="/login" className="secondary" style={{ textAlign: "center", marginTop: 8 }}>
-              Back to login
-            </Link>
-          </form>
-        )}
-      </div>
-    </div>
+    <AuthShell title="Forgot password" subtitle="Enter your email and we'll send you a link to reset it.">
+      {submitted ? (
+        <div>
+          <p className="auth-alert auth-alert-info" role="status">
+            If an account exists with that email, a reset link has been sent. Check your inbox.
+          </p>
+          <Link to="/login" className="auth-link">Back to login</Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="fp-email">Email</label>
+          <input
+            id="fp-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            autoFocus
+            required
+          />
+          {error && <p className="auth-alert auth-alert-error" role="alert">{error}</p>}
+          <button type="submit" disabled={busy}>
+            {busy ? "Sending…" : "Send reset link"}
+          </button>
+          <Link to="/login" className="auth-link">Back to login</Link>
+        </form>
+      )}
+    </AuthShell>
   );
 }
