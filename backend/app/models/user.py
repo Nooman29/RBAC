@@ -28,5 +28,10 @@ class User(Base):
 
     department = Column(String(50), default="Unassigned", nullable=False)
 
+    # DSFS scoping: which school / supplier organisation this user belongs to.
+    # Identifiers are owned by other modules, so they are stored as plain strings.
+    school_id = Column(String(50), nullable=True, index=True)
+    organization_id = Column(String(50), nullable=True)
+
     password_reset_token = Column(String(255), nullable=True, unique=True)
     password_reset_expires = Column(DateTime, nullable=True)

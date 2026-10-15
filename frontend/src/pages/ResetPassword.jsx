@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import client from "../api/client";
+import AuthShell from "../components/AuthShell";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -43,29 +44,38 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1>Reset Password</h1>
-        {done ? (
-          <p className="info">Password reset — redirecting to login…</p>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <label>New Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <label>Confirm Password</label>
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-            {error && <p className="error">{error}</p>}
-            <button type="submit" disabled={busy}>
-              {busy ? "Resetting…" : "Reset Password"}
-            </button>
-          </form>
-        )}
-        {!done && (
-          <p className="muted" style={{ textAlign: "center", marginTop: 10 }}>
-            <Link to="/forgot-password">Request a new link</Link>
-          </p>
-        )}
-      </div>
-    </div>
+    <AuthShell title="Reset password" subtitle="Choose a new password for your account.">
+      {done ? (
+        <p className="auth-alert auth-alert-info" role="status">Password reset. Redirecting to login…</p>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="rp-password">New password</label>
+          <input
+            id="rp-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            autoFocus
+            required
+          />
+          <p className="auth-hint">At least 8 characters.</p>
+          <label htmlFor="rp-confirm">Confirm password</label>
+          <input
+            id="rp-confirm"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+          {error && <p className="auth-alert auth-alert-error" role="alert">{error}</p>}
+          <button type="submit" disabled={busy}>
+            {busy ? "Resetting…" : "Reset password"}
+          </button>
+          <Link to="/forgot-password" className="auth-link">Request a new link</Link>
+        </form>
+      )}
+    </AuthShell>
   );
 }

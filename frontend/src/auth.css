@@ -1,0 +1,186 @@
+/* Auth pages: split-screen shell and refined form styling.
+   Selectors are prefixed with `body` so they win over the older .auth-screen / .auth-card
+   rules in App.css regardless of CSS load order. */
+
+body .auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #0f172a 0%, #1d2f5a 55%, #2b4a9a 100%);
+}
+
+/* Split layout used by AuthShell */
+body .auth-screen.ds-auth {
+  display: grid;
+  grid-template-columns: minmax(340px, 46%) 1fr;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: #f4f6fb;
+}
+
+.ds-auth-brand {
+  display: flex;
+  align-items: center;
+  padding: 56px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(79, 124, 255, 0.35), transparent 45%),
+    linear-gradient(160deg, #0f172a 0%, #1a2b52 100%);
+}
+.ds-auth-brand-inner { max-width: 420px; }
+body .ds-auth-brand .ds-auth-mark { width: 48px; height: 48px; border-radius: 14px; margin-bottom: 22px; }
+.ds-auth-brand h2 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 12px; color: #fff; }
+.ds-auth-brand p { color: #b9c6e0; line-height: 1.55; margin: 0 0 24px; }
+.ds-auth-points { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.ds-auth-points li { display: flex; gap: 10px; color: #dbe4f5; font-size: 0.92rem; }
+.ds-auth-points li::before { content: "✓"; color: #7fa2ff; font-weight: 700; }
+
+.ds-auth-panel { display: flex; align-items: center; justify-content: center; padding: 32px 24px; }
+
+body .auth-screen .auth-card {
+  width: 100%;
+  max-width: 410px;
+  padding: 2.25rem;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+body .auth-screen.ds-auth .auth-card { background: transparent; box-shadow: none; padding: 0; }
+body .auth-screen .auth-card h1 { margin: 0 0 0.35rem; font-size: 1.6rem; color: #111827; }
+.auth-subtitle { margin: 0 0 1.25rem; color: #6b7280; font-size: 0.92rem; line-height: 1.45; }
+
+/* Form controls */
+body .auth-screen .auth-card form { display: flex; flex-direction: column; gap: 0.35rem; }
+body .auth-screen .auth-card label { font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-top: 0.5rem; }
+body .auth-screen .auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #d5dbe6;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+body .auth-screen .auth-card input:focus {
+  outline: none;
+  border-color: #4f7cff;
+  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.18);
+}
+body .auth-screen .auth-card button {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+body .auth-screen .auth-card button:hover:not(:disabled) { background: #1d4ed8; }
+body .auth-screen .auth-card button:disabled { background: #9db4f0; cursor: not-allowed; }
+body .auth-screen .auth-card button.secondary {
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #d5dbe6;
+  margin-top: 0.5rem;
+}
+body .auth-screen .auth-card button.secondary:hover:not(:disabled) { background: #f5f8ff; }
+
+/* Text-style links and buttons */
+body .auth-screen .auth-card .auth-link,
+body .auth-screen .auth-card button.auth-link {
+  display: block;
+  width: auto;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  text-align: center;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+body .auth-screen .auth-card .auth-link:hover,
+body .auth-screen .auth-card button.auth-link:hover:not(:disabled) { background: none; text-decoration: underline; }
+
+/* Alerts */
+.auth-alert { margin: 0.4rem 0 0.6rem; padding: 0.65rem 0.8rem; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
+.auth-alert-error { background: #fef2f2; color: #b42318; border: 1px solid #fcd5d3; }
+.auth-alert-info { background: #ecfdf3; color: #067647; border: 1px solid #c3eed6; }
+
+/* Step indicator */
+.auth-steps { display: flex; gap: 8px; margin: 0 0 1.2rem; }
+.auth-step { flex: 1; padding-top: 6px; border-top: 3px solid #e5e9f2; font-size: 0.72rem; color: #9aa5b8; }
+.auth-step.on { border-top-color: #4f7cff; color: #3d56b8; font-weight: 600; }
+
+/* Password field with show/hide */
+.auth-password { position: relative; }
+body .auth-screen .auth-card .auth-password input { padding-right: 3.6rem; }
+body .auth-screen .auth-card button.auth-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  width: auto;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 8px;
+}
+body .auth-screen .auth-card button.auth-toggle:hover:not(:disabled) { background: #eef1f7; }
+
+/* Verification method cards */
+.auth-options { display: flex; flex-direction: column; gap: 10px; margin-top: 0.4rem; }
+body .auth-screen .auth-card button.auth-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  background: #fff;
+  color: #111827;
+  border: 1px solid #d5dbe6;
+  border-radius: 12px;
+  font-weight: 400;
+}
+body .auth-screen .auth-card button.auth-option:hover:not(:disabled) { border-color: #4f7cff; background: #f5f8ff; }
+.auth-option-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #3d56b8;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.auth-option strong { display: block; font-size: 0.95rem; }
+.auth-option small { color: #6b7280; font-size: 0.8rem; }
+
+/* One-time code */
+body .auth-screen .auth-card input.auth-otp { text-align: center; font-size: 1.5rem; letter-spacing: 0.5em; padding: 0.8rem; }
+.auth-hint { color: #6b7280; font-size: 0.8rem; margin: 0.2rem 0 0; }
+
+@media (max-width: 860px) {
+  body .auth-screen.ds-auth { grid-template-columns: 1fr; }
+  .ds-auth-brand { padding: 28px 24px; }
+  .ds-auth-brand h2 { font-size: 1.3rem; }
+  .ds-auth-brand p { margin-bottom: 0; }
+  .ds-auth-points { display: none; }
+  .ds-auth-panel { padding: 24px 20px 40px; align-items: flex-start; }
+}

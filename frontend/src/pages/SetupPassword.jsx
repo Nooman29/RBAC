@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import AuthShell from "../components/AuthShell";
 
 export default function SetupPassword() {
   const [searchParams] = useSearchParams();
@@ -42,31 +43,36 @@ export default function SetupPassword() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1>Set Your Password</h1>
-        <p className="muted">This activates your account. You'll set up sign-in verification next.</p>
-        <form onSubmit={handleSubmit}>
-          <label>New Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <label>Confirm Password</label>
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-          />
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy}>
-            {busy ? "Setting up…" : "Continue"}
-          </button>
-        </form>
-      </div>
-    </div>
+    <AuthShell
+      title="Set your password"
+      subtitle="This activates your account. You'll set up sign-in verification next."
+    >
+      <form onSubmit={handleSubmit}>
+        <label htmlFor="sp-password">New password</label>
+        <input
+          id="sp-password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          autoFocus
+          required
+        />
+        <p className="auth-hint">At least 8 characters.</p>
+        <label htmlFor="sp-confirm">Confirm password</label>
+        <input
+          id="sp-confirm"
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          required
+        />
+        {error && <p className="auth-alert auth-alert-error" role="alert">{error}</p>}
+        <button type="submit" disabled={busy}>
+          {busy ? "Setting up…" : "Continue"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
