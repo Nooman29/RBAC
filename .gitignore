@@ -33,3 +33,6 @@ Biometric/data/
 .idea/
 .DS_Store
 Thumbs.db
+
+!backend/.env.docker.example
+!.env.example
