@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Browser-facing base URL for account and alert email links.
     FRONTEND_URL: str = "http://127.0.0.1:5173"
 
+    # Extra browser origins allowed to call the API (comma-separated), e.g. the
+    # frontends of other DSFS modules: "http://localhost:3000,https://attendance.example.com"
+    CORS_EXTRA_ORIGINS: str = ""
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
