@@ -4,13 +4,21 @@ Offline training script for the live-schema Isolation Forest model.
 Run manually from backend/ (not part of the FastAPI app):
     python -m scripts.train_isolation_forest
 
-Reads all CLOSED sessions from the live database, builds the same feature
+Reads CLOSED sessions from the live database, builds the same feature
 vectors app/services/anomaly_service.py uses at inference time (via
 app.ml.feature_engineering, so training and inference can never drift
 apart), trains IsolationForest, and persists:
     - isolation_forest.joblib   (fitted model)
     - scaler.joblib             (fitted StandardScaler)
     - threshold.json            (score cutoff used to flag anomalies)
+
+Which sessions are used:
+    Only sessions that count as NORMAL behaviour, by the same rule the per-user baseline uses:
+      - simulated attack sessions are never used
+      - sessions confirmed as threats (even ones the model missed) are never used
+      - flagged sessions still awaiting review are not used
+      - sessions an administrator cleared (false positive / authorized exception) are used
+    Otherwise retraining after a demo would teach the model that the demo attacks are normal.
 
 Threshold strategy:
     There is no ground-truth label for live sessions (unlike CERT), so we
@@ -19,6 +27,8 @@ Threshold strategy:
     distribution (default: top 5% most anomalous = flagged) — a first,
     honest, deployable baseline until enough live volume exists to do
     proper validation the way the CERT notebook did.
+
+After training, restart the backend so it reloads the new artifacts.
 """
 
 from __future__ import annotations
@@ -31,45 +41,66 @@ import joblib
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
+from sqlalchemy import and_, or_
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # allow `app.*` imports
 
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
+from app.models.anomaly import AnomalyAlert
 from app.models.session import UserSession
 
 MIN_SESSIONS_TO_TRAIN = 30  # sanity floor; below this, z-scores are meaningless
 ANOMALY_PERCENTILE = 95     # top 5% of scores flagged as anomalous
 
 
-def load_training_table(db) -> tuple[list[int], np.ndarray]:
+def load_training_table(db) -> tuple[list[int], np.ndarray, int]:
+    closed = db.query(UserSession).filter(UserSession.session_duration.isnot(None))
+    total_closed = closed.count()
+
     sessions = (
-        db.query(UserSession)
-        .filter(UserSession.session_duration.isnot(None))
+        closed.outerjoin(AnomalyAlert, AnomalyAlert.session_id == UserSession.session_id)
+        .filter(
+            UserSession.simulated_scenario.is_(None),
+            or_(
+                AnomalyAlert.alert_id.is_(None),
+                and_(
+                    AnomalyAlert.is_anomaly.is_(False),
+                    or_(
+                        AnomalyAlert.review_verdict.is_(None),
+                        AnomalyAlert.review_verdict != "confirmed_threat",
+                    ),
+                ),
+                AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
+            ),
+        )
         .order_by(UserSession.login_time.asc())
         .all()
     )
+
     session_ids, rows = [], []
     for s in sessions:
         features = build_session_feature_vector(db, s)
         rows.append([features[col] for col in FEATURE_COLUMNS])
         session_ids.append(s.session_id)
-    return session_ids, np.array(rows, dtype=float)
+    return session_ids, np.array(rows, dtype=float), total_closed
 
 
 def main():
     db = SessionLocal()
     try:
-        session_ids, X = load_training_table(db)
+        session_ids, X, total_closed = load_training_table(db)
     finally:
         db.close()
 
     n = len(session_ids)
-    print(f"Loaded {n} closed sessions for training.")
+    print(f"Loaded {n} sessions for training "
+          f"({total_closed - n} of {total_closed} closed sessions excluded: simulated attacks, "
+          f"confirmed threats, or flagged and not yet reviewed).")
     if n < MIN_SESSIONS_TO_TRAIN:
         print(
-            f"Only {n} closed sessions found (< {MIN_SESSIONS_TO_TRAIN}). "
+            f"Only {n} usable sessions found (< {MIN_SESSIONS_TO_TRAIN}). "
             f"Run scripts/seed_synthetic_data.py first, or wait for more real usage."
         )
         return
@@ -111,6 +142,7 @@ def main():
     print(f"Saved model     -> {model_path}")
     print(f"Saved scaler    -> {scaler_path}")
     print(f"Saved threshold -> {threshold_path}")
+    print("Restart the backend so it loads the new model: docker compose restart backend")
 
 
 if __name__ == "__main__":
