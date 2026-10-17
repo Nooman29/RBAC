@@ -1,10 +1,10 @@
 """
-Idempotent schema upgrade for DSFS Pass 1.
+Idempotent schema upgrades for the DSFS work.
 
 The app creates tables with Base.metadata.create_all, which never adds columns
-to tables that already exist. This module adds the new columns/index with
+to tables that already exist. This module adds new columns/indexes with
 `IF NOT EXISTS`, so it is safe to run on every startup and on any database
-(fresh, or one created before Pass 1).
+(fresh, or one created before these changes).
 
 Callers must ensure the base tables exist first (main.py runs create_all
 before calling this).
@@ -29,6 +29,9 @@ _SCHEMA_STATEMENTS = [
     # at the column default, so it never overrides a later deliberate change.
     "UPDATE roles SET scope = 'global' WHERE role_name = 'Administrator' AND scope = 'own'",
     "UPDATE roles SET scope = 'department' WHERE role_name = 'Manager' AND scope = 'own'",
+    # Component-level audit log
+    "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS component VARCHAR(60)",
+    "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS endpoint VARCHAR(200)",
 ]
 
 
@@ -37,4 +40,4 @@ def apply_dsfs_pass1_schema(engine: Engine) -> None:
     with engine.begin() as conn:
         for statement in _SCHEMA_STATEMENTS:
             conn.execute(text(statement))
-    logger.info("DSFS Pass 1 schema is up to date.")
+    logger.info("DSFS schema is up to date.")
