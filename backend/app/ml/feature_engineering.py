@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.models.session import UserSession, AccessLog
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from app.models.anomaly import AnomalyAlert
 
 RAW_FEATURE_COLUMNS = [
@@ -100,14 +100,16 @@ def build_user_history_stats(
     Mean/std of each ZSCORE_SOURCE_COLUMNS raw feature across this user's
     OTHER closed sessions.
 
-    include_simulated=False (default, production behavior): simulated attack
-    sessions are excluded, so a user's baseline always reflects genuine
-    historical behavior only.
+    Simulated attack sessions never count toward a baseline (include_simulated
+    is kept only for older callers and defaults to False).
 
-    include_simulated=True: used ONLY by the attack-simulation demo tool's
-    "naive" mode, to intentionally reproduce a baseline that gets polluted by
-    repeated simulated sessions — used to demonstrate why the exclusion above
-    is necessary. Never used in the normal scoring path.
+    A session counts toward "normal" behavior only if:
+      - it was never scored, or
+      - it was scored normal AND an administrator has not confirmed it as a threat, or
+      - an administrator cleared it as a false positive or authorized exception.
+    A flagged session that is unreviewed, and ANY session confirmed as a threat
+    (including one the model let through), never counts. This keeps an attack, however
+    it was discovered, from teaching the model to treat it as normal.
     """
     query = (
         db.query(UserSession)
@@ -122,16 +124,16 @@ def build_user_history_stats(
     if exclude_session_id is not None:
         query = query.filter(UserSession.session_id != exclude_session_id)
 
-    # A session only counts toward "normal" baseline behavior if it was never
-    # flagged anomalous, or if a human administrator has explicitly cleared
-    # it as a false positive or an authorized exception. A flagged session
-    # that is unreviewed, or confirmed as a genuine threat, never counts —
-    # this is what prevents an unreviewed repeated attack from quietly
-    # teaching the model to treat it as normal.
     query = query.filter(
         or_(
             AnomalyAlert.alert_id.is_(None),
-            AnomalyAlert.is_anomaly.is_(False),
+            and_(
+                AnomalyAlert.is_anomaly.is_(False),
+                or_(
+                    AnomalyAlert.review_verdict.is_(None),
+                    AnomalyAlert.review_verdict != "confirmed_threat",
+                ),
+            ),
             AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
         )
     )
@@ -160,11 +162,7 @@ def build_user_history_stats(
 def build_session_feature_vector(
     db: DBSession, session: UserSession, include_simulated_in_baseline: bool = False
 ) -> dict:
-    """
-    Full feature dict for one session, keyed exactly by FEATURE_COLUMNS.
-    include_simulated_in_baseline is only ever True when called from the
-    attack-simulation demo tool's "naive" mode.
-    """
+    """Full feature dict for one session, keyed exactly by FEATURE_COLUMNS."""
     raw = build_raw_session_features(db, session)
     stats = build_user_history_stats(
         db, session.user_id, exclude_session_id=session.session_id,

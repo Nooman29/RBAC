@@ -1,10 +1,16 @@
 """
 Live attack simulation for demo purposes.
+
+Builds real sessions and access logs for named suspicious behaviours and scores them
+through the unmodified detection pipeline. Simulated sessions never count toward a
+user's baseline, so repeated runs behave consistently. Administrator verdicts still
+teach the detector: mark a missed run as a confirmed threat and the next run of the
+same behaviour is flagged.
 """
 
 from __future__ import annotations
 
-import random 
+import random
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session as DBSession
 
@@ -54,7 +60,7 @@ SCENARIOS = {
             "A short session late in the evening with an unusually high number "
             "of delete actions compared to how this user normally behaves."
         ),
-        "login_hour": 20,
+        "login_hour": 21,
         "duration_sec": 900,
         "n_events": 18,
         "write_ratio": 0.2,
@@ -94,13 +100,16 @@ def _pick_seen_ip(db: DBSession, user_id: int) -> str | None:
     return row[0] if row else None
 
 
-def run_scenario(
-    db: DBSession, user_id: int, scenario_key: str, demo_mode: str = "isolated"
-) -> dict:
+def _pick_weekday_offset(now: datetime) -> int:
+    """A recent past WEEKDAY (1-4 days ago), so a stray 'weekend' flag never changes the
+    behaviour pattern between runs of the same scenario."""
+    options = [d for d in range(1, 5) if (now - timedelta(days=d)).weekday() < 5]
+    return random.choice(options or [1])
+
+
+def run_scenario(db: DBSession, user_id: int, scenario_key: str) -> dict:
     if scenario_key not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario_key}")
-    if demo_mode not in ("isolated", "naive"):
-        raise ValueError("demo_mode must be 'isolated' or 'naive'")
     cfg = SCENARIOS[scenario_key]
 
     user = db.query(User).filter(User.user_id == user_id).first()
@@ -109,12 +118,11 @@ def run_scenario(
 
     now = datetime.utcnow()
 
-    # Jitter login hour slightly (±1h) and land on a random recent day, so
-    # repeated runs of the same scenario don't look robotically identical —
-    # more realistic than firing at the exact same minute every time.
+    # Small jitter so repeated runs are not robotically identical. Scenario hours are
+    # chosen so the jitter never moves a login across the off-hours boundary.
     hour_jitter = random.choice([-1, 0, 0, 1])
     jittered_hour = max(0, min(23, cfg["login_hour"] + hour_jitter))
-    day_offset = random.randint(0, 3)
+    day_offset = _pick_weekday_offset(now)
 
     login_time = (now - timedelta(days=day_offset)).replace(
         hour=jittered_hour, minute=random.randint(0, 59), second=random.randint(0, 59), microsecond=0
@@ -162,15 +170,11 @@ def run_scenario(
         )
     db.commit()
 
-    include_simulated = demo_mode == "naive"
-    alert = anomaly_service.score_session(
-        db, session.session_id, include_simulated_in_baseline=include_simulated
-    )
+    alert = anomaly_service.score_session(db, session.session_id)
 
     return {
         "scenario": scenario_key,
         "scenario_label": cfg["label"],
-        "demo_mode": demo_mode,
         "session_id": session.session_id,
         "user_id": user.user_id,
         "username": user.username,
@@ -178,12 +182,13 @@ def run_scenario(
         "anomaly_score": alert.anomaly_score if alert else None,
         "is_anomaly": alert.is_anomaly if alert else None,
         "detection_reason": alert.detection_reason if alert else None,
+        "pattern_signature": alert.pattern_signature if alert else None,
     }
 
 
 def reset_simulated_data(db: DBSession, user_id: int) -> int:
-    """Purges synthetic attack sessions for this user so the next simulation
-    starts from a clean baseline instead of an inflated one from prior runs."""
+    """Purges synthetic attack sessions for this user (and their alerts), so the next
+    simulation starts without earlier simulated verdicts acting as precedent."""
     session_ids = [
         s.session_id
         for s in db.query(UserSession.session_id)
@@ -205,6 +210,7 @@ def reset_simulated_data(db: DBSession, user_id: int) -> int:
     db.query(UserSession).filter(UserSession.session_id.in_(session_ids)).delete(synchronize_session=False)
     db.commit()
     return len(session_ids)
+
 
 def full_reset_user_history(db: DBSession, user_id: int) -> int:
     """

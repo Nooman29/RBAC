@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
 import { usePermissions } from "../context/PermissionsContext";
+import { describeDetection, describeSignature } from "../utils/detection";
 
 export default function SimulateAttack() {
   const { can, loaded } = usePermissions();
@@ -9,10 +10,11 @@ export default function SimulateAttack() {
   const [scenarios, setScenarios] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedScenario, setSelectedScenario] = useState("");
-  const [demoMode, setDemoMode] = useState("isolated");
   const [running, setRunning] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [fullResetting, setFullResetting] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [marked, setMarked] = useState(false);
   const [result, setResult] = useState(null);
   const [resetMessage, setResetMessage] = useState("");
   const [error, setError] = useState("");
@@ -30,19 +32,36 @@ export default function SimulateAttack() {
     if (!selectedUser || !selectedScenario) return;
     setError("");
     setResult(null);
+    setMarked(false);
     setResetMessage("");
     setRunning(true);
     try {
       const res = await client.post("/api/dashboard/simulate-attack", {
         user_id: Number(selectedUser),
         scenario: selectedScenario,
-        demo_mode: demoMode,
       });
       setResult(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Simulation failed");
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function handleMarkThreat() {
+    if (!result?.alert_id) return;
+    setError("");
+    setMarking(true);
+    try {
+      await client.patch(`/api/dashboard/alerts/${result.alert_id}`, {
+        review_verdict: "confirmed_threat",
+        notes: "Reported as a real threat from the attack simulation page.",
+      });
+      setMarked(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to record the verdict");
+    } finally {
+      setMarking(false);
     }
   }
 
@@ -93,8 +112,7 @@ export default function SimulateAttack() {
     );
   }
 
-  const showDriftNudge =
-    result && !result.injected && demoMode === "naive" && result.is_anomaly === false;
+  const signatureText = result ? describeSignature(result.pattern_signature) : "";
 
   return (
     <div>
@@ -105,43 +123,24 @@ export default function SimulateAttack() {
         here is faked; the score and alert you see are genuine model output.
       </p>
 
+      <div className="panel">
+        <h3>How the feedback loop works</h3>
+        <ol>
+          <li>Run a scenario for a user. The detector scores it.</li>
+          <li>
+            If it is <strong>not flagged</strong> but it was really an attack, mark it as a threat.
+            The system remembers the pattern and keeps that session out of the user's normal history.
+          </li>
+          <li>Run the same scenario again: it is now flagged, because it matches a confirmed threat.</li>
+        </ol>
+        <p className="muted">
+          Simulated sessions never count toward a user's baseline. If you later decide the behavior was
+          fine, set the verdict to False Positive on the alert and it stops being flagged.
+        </p>
+      </div>
+
       {error && <p className="error">{error}</p>}
       {resetMessage && <p className="info">{resetMessage}</p>}
-
-      <div className="panel">
-        <h3>Baseline Mode</h3>
-        <p className="muted">
-          Controls whether repeated simulations count toward this user's "normal" behavior baseline.
-        </p>
-        <label className="mode-option">
-          <input
-            type="radio"
-            name="demoMode"
-            value="isolated"
-            checked={demoMode === "isolated"}
-            onChange={() => setDemoMode("isolated")}
-          />
-          <strong>Isolated (production behavior)</strong>
-          <p className="muted">
-            Simulated sessions never affect the user's baseline. Running the same scenario repeatedly
-            produces a consistent result every time.
-          </p>
-        </label>
-        <label className="mode-option">
-          <input
-            type="radio"
-            name="demoMode"
-            value="naive"
-            checked={demoMode === "naive"}
-            onChange={() => setDemoMode("naive")}
-          />
-          <strong>Naive (demonstration only)</strong>
-          <p className="muted">
-            Simulated sessions ARE folded into the baseline. Run the same scenario on the same user
-            twice in a row and watch the second attempt score lower.
-          </p>
-        </label>
-      </div>
 
       <div className="panel">
         <div className="inline-form">
@@ -166,7 +165,7 @@ export default function SimulateAttack() {
             {fullResetting ? "Wiping…" : "Full reset (wipe ALL history)"}
           </button>
           <span className="muted reset-hint">
-            "Clear simulated" removes only test sessions. "Full reset" wipes everything for this user, including real history.
+            "Clear simulated" removes only test sessions and their verdicts. "Full reset" wipes everything for this user, including real history.
           </span>
         </div>
       </div>
@@ -193,33 +192,37 @@ export default function SimulateAttack() {
       {result && (
         <div className={`panel result-panel ${result.is_anomaly ? "result-flagged" : "result-clear"}`}>
           <h3>{result.is_anomaly ? "⚠️ Anomaly Detected" : "No Anomaly Flagged"}</h3>
-          <p>Scenario: <strong>{result.scenario_label}</strong> ({result.demo_mode} mode)</p>
+          <p>Scenario: <strong>{result.scenario_label}</strong></p>
           <p>User: <strong>{result.username}</strong> — Session #{result.session_id}</p>
-          {result.anomaly_score !== null && (
+          {result.anomaly_score !== null && result.anomaly_score !== undefined && (
             <p>Anomaly score: <strong>{result.anomaly_score.toFixed(4)}</strong></p>
           )}
           {result.is_anomaly && (
             <p>
-              Detection method:{" "}
-              <strong>
-                {result.detection_reason === "repeat_pattern_override"
-                  ? "Repeated suspicious pattern (rule-based override)"
-                  : "Statistical anomaly (ML model)"}
-              </strong>
+              Detection method: <strong>{describeDetection(result.detection_reason)}</strong>
             </p>
           )}
+          {signatureText && <p className="muted">Behavior recorded: {signatureText}.</p>}
           {result.alert_id && (
             <Link to={`/alerts/${result.alert_id}`}>View full alert & SHAP explanation &rarr;</Link>
           )}
 
-          {showDriftNudge && (
+          {!result.is_anomaly && result.alert_id && (
             <div className="drift-nudge">
-              <strong>This is the baseline drift in action.</strong>
+              <strong>Was this actually an attack?</strong>
               <p>
-                In Naive mode, this repeated attack got folded into the user's baseline from an earlier
-                run. Click "Clear simulated history," switch to Isolated mode, and run it again — it
-                will flag consistently.
+                The detector let this session through. If it was malicious, report it: the system will
+                remember this pattern and flag it the next time this user does it.
               </p>
+              {marked ? (
+                <p className="info">
+                  Recorded as a confirmed threat. Run the same scenario again for this user — it will now be flagged.
+                </p>
+              ) : (
+                <button onClick={handleMarkThreat} disabled={marking}>
+                  {marking ? "Recording…" : "Mark as a real threat"}
+                </button>
+              )}
             </div>
           )}
         </div>
