@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
+import { describeDetection, describeSignature } from "../utils/detection";
 import { usePermissions } from "../context/PermissionsContext";
 import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
@@ -54,6 +55,7 @@ export default function AlertDetail() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
   const [terminating, setTerminating] = useState(false);
   const [terminateMsg, setTerminateMsg] = useState("");
   const { can } = usePermissions();
@@ -78,10 +80,21 @@ export default function AlertDetail() {
     }
     setSaving(true);
     setError("");
+    setSavedMsg("");
     try {
       await client.patch(`/api/dashboard/alerts/${alertId}`, { review_verdict: verdict, notes });
-      setJustSaved(true);
-      setTimeout(() => navigate("/alerts"), 700);
+      if (alert.is_anomaly) {
+        setJustSaved(true);
+        setTimeout(() => navigate("/alerts"), 700);
+      } else {
+        setSavedMsg(
+          verdict === "confirmed_threat"
+            ? "Saved. The system will remember this pattern and flag it next time this user does it."
+            : "Saved."
+        );
+        setSaving(false);
+        load();
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to save");
       setSaving(false);
@@ -106,6 +119,8 @@ export default function AlertDetail() {
   if (error && !alert) return <p className="error">{error}</p>;
   if (!alert) return <p>Loading…</p>;
 
+  const canReview = can && can("dashboard", "write");
+  const patternText = describeSignature(alert.pattern_signature);
   const maxAbsShap = Math.max(1e-6, ...alert.shap_contributions.map((c) => Math.abs(c.shap_value)));
   const topForSummary = [...alert.shap_contributions]
     .filter((c) => c.shap_value > 0)
@@ -131,10 +146,9 @@ export default function AlertDetail() {
         </div>
         <div>
           <strong>Detection method:</strong>{" "}
-          {alert.detection_reason === "repeat_pattern_override"
-            ? "Repeated suspicious pattern (rule-based override)"
-            : "Statistical anomaly (ML model)"}
+          {alert.is_anomaly ? describeDetection(alert.detection_reason) : "Not flagged by the detector"}
         </div>
+        {patternText && <div><strong>Behavior pattern:</strong> {patternText}</div>}
       </div>
 
       <div className="session-status">
@@ -146,7 +160,7 @@ export default function AlertDetail() {
           <span className="badge badge-neutral">Ended normally — user logged out</span>
         )}
 
-        {alert.session_active && can && can("dashboard", "write") && (
+        {alert.session_active && canReview && (
           <button className="danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
             {terminating ? "Terminating…" : "Terminate Session"}
           </button>
@@ -156,7 +170,7 @@ export default function AlertDetail() {
 
       {alert.shap_contributions.length > 0 && (
         <>
-          <h3>Why this was flagged</h3>
+          <h3>{alert.is_anomaly ? "Why this was flagged" : "How this session was scored"}</h3>
           {topForSummary.length > 0 ? (
             <p className="explanation-summary">
               {alert.is_anomaly ? "This session was flagged as anomalous. " : "This session scored close to the anomaly threshold. "}
@@ -203,25 +217,39 @@ export default function AlertDetail() {
         </tbody>
       </table>
 
-            <h3>Review</h3>
+      <h3>Review</h3>
       {error && <p className="error">{error}</p>}
       <ViewOnlyNotice resource="dashboard" label="alert review" />
-      {can && can("dashboard", "write") ? (
+      {canReview ? (
         <>
+          {!alert.is_anomaly && !alert.review_verdict && (
+            <div className="drift-nudge">
+              <strong>This session was not flagged.</strong>
+              <p>
+                If it was actually malicious, choose "Confirmed Threat". The system will remember this
+                pattern and flag it the next time this user does it, and this session will stay out of
+                their normal history.
+              </p>
+            </div>
+          )}
           {alert.review_verdict && (
             <p className="info">Current verdict: <strong>{VERDICT_LABELS[alert.review_verdict]}</strong></p>
           )}
           <p className="muted">
-            Choosing a verdict determines whether this session's behavior counts toward this user's future baseline.
-            Confirming a threat (or leaving it unreviewed) keeps it excluded — the system will never treat unconfirmed
-            suspicious behavior as "normal." Marking it a false positive or an authorized exception (e.g. an approved
-            maintenance window) allows it to count as legitimate history going forward.
+            Your verdict teaches the detector. Confirming a threat keeps the session out of this user's
+            baseline and makes the same behavior flag in future. Marking it a false positive or an
+            authorized exception (e.g. an approved maintenance window) lets it count as legitimate
+            history and stops the pattern from being flagged.
           </p>
           <div className="verdict-options">
             <label className={`verdict-option ${verdict === "confirmed_threat" ? "verdict-selected" : ""}`}>
               <input type="radio" name="verdict" value="confirmed_threat" checked={verdict === "confirmed_threat"} onChange={(e) => setVerdict(e.target.value)} />
               <strong>Confirmed Threat</strong>
-              <p className="muted">This genuinely looks malicious or unauthorized. Stays excluded from this user's baseline.</p>
+              <p className="muted">
+                {alert.is_anomaly
+                  ? "This genuinely looks malicious or unauthorized. Stays excluded from this user's baseline and flags the pattern next time."
+                  : "The detector missed this. The pattern is remembered and flagged next time; the session stays out of this user's baseline."}
+              </p>
             </label>
             <label className={`verdict-option ${verdict === "false_positive" ? "verdict-selected" : ""}`}>
               <input type="radio" name="verdict" value="false_positive" checked={verdict === "false_positive"} onChange={(e) => setVerdict(e.target.value)} />
@@ -246,6 +274,7 @@ export default function AlertDetail() {
             </button>
             {justSaved && <span className="info"> Updated — returning to alerts…</span>}
           </div>
+          {savedMsg && <p className="info">{savedMsg}</p>}
         </>
       ) : (
         alert.review_verdict && (

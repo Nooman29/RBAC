@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
+import { describeDetection } from "../utils/detection";
+
+const VERDICT_LABELS = {
+  confirmed_threat: "Confirmed threat",
+  false_positive: "False positive",
+  authorized_exception: "Authorized exception",
+};
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState([]);
@@ -41,6 +48,12 @@ export default function Alerts() {
           Include reviewed
         </label>
       </div>
+      {!onlyAnomalous && (
+        <p className="muted">
+          Showing every scored session, including ones the detector did not flag. If one of them was
+          actually malicious, open it and mark it as a confirmed threat so the system learns the pattern.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -52,7 +65,8 @@ export default function Alerts() {
             <th>Session</th>
             <th>Score</th>
             <th>Flagged</th>
-            <th>Reviewed</th>
+            <th>Detection</th>
+            <th>Verdict</th>
             <th>Timestamp</th>
           </tr>
         </thead>
@@ -66,7 +80,8 @@ export default function Alerts() {
               <td>{a.session_id}</td>
               <td>{a.anomaly_score.toFixed(4)}</td>
               <td>{a.is_anomaly ? "⚠️ Yes" : "No"}</td>
-              <td>{a.reviewed ? "✓" : "—"}</td>
+              <td>{a.is_anomaly ? describeDetection(a.detection_reason) : "—"}</td>
+              <td>{a.review_verdict ? VERDICT_LABELS[a.review_verdict] || a.review_verdict : "—"}</td>
               <td>{parseUtc(a.alert_timestamp).toLocaleString()}</td>
             </tr>
           ))}

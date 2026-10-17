@@ -10,6 +10,10 @@ score, not the exact -score_samples() value we display as anomaly_score.
 The relative RANKING of which features pushed the score toward "anomalous"
 is meaningful and is what we surface; the raw shap numbers should not be
 read as an exact numeric decomposition of anomaly_score.
+
+Human feedback: administrator verdicts feed back into detection. A session
+confirmed as a threat (even one the model let through) becomes precedent: later
+sessions of the same user that trip every indicator it tripped are flagged.
 """
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ import joblib
 import numpy as np
 import shap
 from sqlalchemy.orm import Session as DBSession
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from app.core.config import settings
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
@@ -39,6 +43,13 @@ _explainer = None
 _load_attempted = False
 
 TOP_N_CONTRIBUTIONS = 6
+
+REASON_ML = "ml_model"
+REASON_REPEAT = "repeat_pattern_override"        # matches an earlier flagged, still-unreviewed alert
+REASON_CONFIRMED = "confirmed_threat_pattern"    # matches a pattern an administrator confirmed as a threat
+CONFIRMED_THREAT = "confirmed_threat"
+
+REPEAT_PATTERN_THRESHOLD = 1  # min prior flagged-and-unreviewed occurrences of the pattern
 
 
 def _load_artifacts() -> bool:
@@ -97,8 +108,6 @@ def _compute_shap_contributions(scaled_row: np.ndarray) -> Optional[list]:
     contributions.sort(key=lambda c: abs(c["shap_value"]), reverse=True)
     return contributions[:TOP_N_CONTRIBUTIONS]
 
-REPEAT_PATTERN_THRESHOLD = 1  # min prior genuine flagged occurrences of the same signature
-
 
 def _compute_pattern_signature(features: dict) -> str:
     flags = []
@@ -119,26 +128,64 @@ def _compute_pattern_signature(features: dict) -> str:
     return "|".join(sorted(flags)) if flags else "normal"
 
 
-def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> bool:
-    if signature == "normal":
-        return False
+def _signature_flags(signature: Optional[str]) -> set:
+    if not signature or signature == "normal":
+        return set()
+    return {flag for flag in signature.split("|") if flag}
 
-    prior_count = (
-        db.query(AnomalyAlert)
+
+def _find_precedent(db: DBSession, session: UserSession, signature: str) -> Optional[str]:
+    """
+    Has this user already done this before, in a way that mattered?
+
+    Precedents are this user's other alerts that are either
+      - confirmed as a threat by an administrator (flagged or NOT flagged by the model), or
+      - flagged by the system and still unreviewed.
+    Alerts cleared as false_positive / authorized_exception, and unflagged alerts with no
+    verdict, never count.
+
+    A precedent matches when the current session trips EVERY indicator the precedent
+    tripped (extra indicators are fine). Returns the detection reason, or None.
+    """
+    current = _signature_flags(signature)
+    if not current:
+        return None
+
+    rows = (
+        db.query(AnomalyAlert.pattern_signature, AnomalyAlert.review_verdict)
         .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
         .filter(
             UserSession.user_id == session.user_id,
             AnomalyAlert.session_id != session.session_id,
-            AnomalyAlert.is_anomaly.is_(True),
-            AnomalyAlert.pattern_signature == signature,
+            AnomalyAlert.pattern_signature.isnot(None),
             or_(
-                AnomalyAlert.review_verdict.is_(None),
-                AnomalyAlert.review_verdict == "confirmed_threat",
+                AnomalyAlert.review_verdict == CONFIRMED_THREAT,
+                and_(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.review_verdict.is_(None)),
             ),
         )
-        .count()
+        .all()
     )
-    return prior_count >= REPEAT_PATTERN_THRESHOLD
+
+    confirmed_matches = 0
+    unreviewed_matches = 0
+    for precedent_signature, verdict in rows:
+        flags = _signature_flags(precedent_signature)
+        if flags and flags <= current:
+            if verdict == CONFIRMED_THREAT:
+                confirmed_matches += 1
+            else:
+                unreviewed_matches += 1
+
+    if confirmed_matches >= 1:
+        return REASON_CONFIRMED
+    if unreviewed_matches >= REPEAT_PATTERN_THRESHOLD:
+        return REASON_REPEAT
+    return None
+
+
+def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> bool:
+    """Kept for compatibility with older callers."""
+    return _find_precedent(db, session, signature) is not None
 
 
 def score_session(
@@ -167,17 +214,18 @@ def score_session(
     is_anomaly = bool(raw_score >= _threshold)
 
     signature = _compute_pattern_signature(features)
-    detection_reason = "ml_model"
+    detection_reason = REASON_ML
 
-    if not is_anomaly and _is_repeat_offender(db, session, signature):
-        is_anomaly = True
-        detection_reason = "repeat_pattern_override"
-        logger.info(
-            "Repeat-offender override: session_id=%s user_id=%s signature=%s "
-            "(ML score %.4f was below threshold %.4f, but this pattern was "
-            "previously flagged for this user)",
-            session_id, session.user_id, signature, raw_score, _threshold,
-        )
+    if not is_anomaly:
+        precedent_reason = _find_precedent(db, session, signature)
+        if precedent_reason:
+            is_anomaly = True
+            detection_reason = precedent_reason
+            logger.info(
+                "Pattern match (%s): session_id=%s user_id=%s signature=%s "
+                "(ML score %.4f was below threshold %.4f)",
+                precedent_reason, session_id, session.user_id, signature, raw_score, _threshold,
+            )
 
     contributions = _compute_shap_contributions(scaled)
 

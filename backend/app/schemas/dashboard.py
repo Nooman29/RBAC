@@ -24,6 +24,8 @@ class AnomalyAlertSummary(BaseModel):
     anomaly_score: float
     is_anomaly: bool
     detection_reason: str = "ml_model"
+    review_verdict: Optional[str] = None
+    is_overdue: bool = False
     alert_timestamp: datetime
     reviewed: bool
     model_config = ConfigDict(from_attributes=True)
@@ -32,6 +34,7 @@ class AnomalyAlertSummary(BaseModel):
 class AnomalyAlertDetail(AnomalyAlertSummary):
     reviewed_by: Optional[int] = None
     notes: Optional[str] = None
+    pattern_signature: Optional[str] = None
     features: Dict[str, Any]
     shap_contributions: List[ShapContribution] = []
     role_names: List[str] = []
@@ -39,12 +42,13 @@ class AnomalyAlertDetail(AnomalyAlertSummary):
     session_duration: Optional[float] = None
     access_location: Optional[str] = None
     session_terminated: bool = False
-   
+    session_active: bool = False
 
 
 class AlertReviewUpdate(BaseModel):
     reviewed: Optional[bool] = None
     notes: Optional[str] = None
+    review_verdict: Optional[str] = None
 
 
 class SessionOut(BaseModel):
@@ -58,6 +62,12 @@ class SessionOut(BaseModel):
     access_location: Optional[str] = None
     is_active: bool
     terminated: bool
+    simulated: bool = False
+    # Detection result for this session, once it has been scored
+    alert_id: Optional[int] = None
+    is_anomaly: Optional[bool] = None
+    anomaly_score: Optional[float] = None
+    review_verdict: Optional[str] = None
 
 
 class TerminateSessionResult(BaseModel):
@@ -76,13 +86,11 @@ class ScenarioOut(BaseModel):
 class SimulateAttackRequest(BaseModel):
     user_id: int
     scenario: str
-    demo_mode: str = "isolated"
 
 
 class SimulateAttackResult(BaseModel):
     scenario: str
     scenario_label: str
-    demo_mode: str
     session_id: int
     user_id: int
     username: str
@@ -90,6 +98,8 @@ class SimulateAttackResult(BaseModel):
     anomaly_score: Optional[float] = None
     is_anomaly: Optional[bool] = None
     detection_reason: Optional[str] = None
+    pattern_signature: Optional[str] = None
+
 
 class AuditLogEntryOut(BaseModel):
     log_id: int
@@ -100,52 +110,6 @@ class AuditLogEntryOut(BaseModel):
     resource_name: str
     action_performed: str
 
-class AnomalyAlertDetail(AnomalyAlertSummary):
-    reviewed_by: Optional[int] = None
-    notes: Optional[str] = None
-    features: Dict[str, Any]
-    shap_contributions: List[ShapContribution] = []
-    role_names: List[str] = []
-    login_time: datetime
-    session_duration: Optional[float] = None
-    access_location: Optional[str] = None
-    session_terminated: bool = False
-    session_active: bool = False
-
-class AlertReviewUpdate(BaseModel):
-    reviewed: Optional[bool] = None
-    notes: Optional[str] = None
-    review_verdict: Optional[str] = None
-
-
-class AnomalyAlertSummary(BaseModel):
-    alert_id: int
-    session_id: int
-    user_id: int
-    username: str
-    department: Optional[str] = None
-    anomaly_score: float
-    is_anomaly: bool
-    detection_reason: str = "ml_model"
-    review_verdict: Optional[str] = None
-    is_overdue: bool = False
-    alert_timestamp: datetime
-    reviewed: bool
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AnomalyAlertDetail(AnomalyAlertSummary):
-    reviewed_by: Optional[int] = None
-    notes: Optional[str] = None
-    features: Dict[str, Any]
-    shap_contributions: List[ShapContribution] = []
-    role_names: List[str] = []
-    login_time: datetime
-    session_duration: Optional[float] = None
-    access_location: Optional[str] = None
-    session_terminated: bool = False
-    session_active: bool = False
-
 
 class DetectionOutcomeSummary(BaseModel):
     confirmed_threat: int
@@ -154,3 +118,5 @@ class DetectionOutcomeSummary(BaseModel):
     unreviewed: int
     unreviewed_overdue: int
     total_flagged: int
+    # Sessions the detector did NOT flag that an administrator later confirmed as threats
+    missed_threat: int = 0
