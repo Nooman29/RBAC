@@ -225,6 +225,7 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         reviewed=alert.reviewed,
         reviewed_by=alert.reviewed_by,
         notes=alert.notes,
+        pattern_signature=alert.pattern_signature,
         features=features,
         shap_contributions=shap_contributions,
         role_names=[r.role_name for r in user.roles] if user else [],
@@ -261,6 +262,9 @@ def update_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
     _assert_alert_in_scope(alert, _visibility_scope(current_user))
 
+    # A verdict can be recorded on ANY scored session, flagged or not. A "confirmed_threat"
+    # on a session the model let through is how a missed detection is reported; the detector
+    # learns the pattern and the session leaves the user's baseline.
     if payload.review_verdict is not None:
         if payload.review_verdict not in REVIEW_VERDICTS:
             raise HTTPException(status_code=400, detail=f"review_verdict must be one of: {', '.join(REVIEW_VERDICTS)}")
@@ -332,21 +336,37 @@ def list_sessions(
         query = query.filter(UserSession.logout_time.is_(None))
     sessions = query.order_by(UserSession.login_time.desc()).limit(100).all()
 
-    return [
-        SessionOut(
-            session_id=s.session_id,
-            user_id=s.user_id,
-            username=s.user.username if s.user else "unknown",
-            department=s.user.department if s.user else None,
-            login_time=s.login_time,
-            logout_time=s.logout_time,
-            session_duration=s.session_duration,
-            access_location=s.access_location,
-            is_active=s.logout_time is None,
-            terminated=s.terminated,
+    session_ids = [s.session_id for s in sessions]
+    alerts_by_session = {}
+    if session_ids:
+        alerts_by_session = {
+            a.session_id: a
+            for a in db.query(AnomalyAlert).filter(AnomalyAlert.session_id.in_(session_ids)).all()
+        }
+
+    results = []
+    for s in sessions:
+        alert = alerts_by_session.get(s.session_id)
+        results.append(
+            SessionOut(
+                session_id=s.session_id,
+                user_id=s.user_id,
+                username=s.user.username if s.user else "unknown",
+                department=s.user.department if s.user else None,
+                login_time=s.login_time,
+                logout_time=s.logout_time,
+                session_duration=s.session_duration,
+                access_location=s.access_location,
+                is_active=s.logout_time is None,
+                terminated=s.terminated,
+                simulated=s.simulated_scenario is not None,
+                alert_id=alert.alert_id if alert else None,
+                is_anomaly=alert.is_anomaly if alert else None,
+                anomaly_score=alert.anomaly_score if alert else None,
+                review_verdict=alert.review_verdict if alert else None,
+            )
         )
-        for s in sessions
-    ]
+    return results
 
 
 @router.get("/charts/alerts-over-time")
@@ -418,9 +438,7 @@ def simulate_attack(
     db: Session = Depends(get_db),
 ):
     try:
-        result = attack_simulation_service.run_scenario(
-            db, payload.user_id, payload.scenario, demo_mode=payload.demo_mode
-        )
+        result = attack_simulation_service.run_scenario(db, payload.user_id, payload.scenario)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
@@ -469,6 +487,15 @@ def get_detection_outcomes(
     unreviewed = sum(1 for a in alerts if a.review_verdict is None)
     overdue = sum(1 for a in alerts if _is_overdue(a))
 
+    # Threats the detector let through, reported by an administrator afterwards.
+    missed_query = (
+        db.query(AnomalyAlert)
+        .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+        .filter(AnomalyAlert.is_anomaly.is_(False), AnomalyAlert.review_verdict == "confirmed_threat")
+    )
+    missed = _apply_visibility(missed_query, scope).count()
+
     return DetectionOutcomeSummary(
         confirmed_threat=confirmed,
         false_positive=false_positive,
@@ -476,6 +503,7 @@ def get_detection_outcomes(
         unreviewed=unreviewed,
         unreviewed_overdue=overdue,
         total_flagged=len(alerts),
+        missed_threat=missed,
     )
 
 
