@@ -7,6 +7,7 @@ const COLORS = {
   "False Positive": "#5b8def",
   "Authorized Exception": "#f0ad4e",
   "Unreviewed": "#999999",
+  "Missed by detector": "#7a1f1a",
 };
 
 export default function DetectionOutcomes() {
@@ -23,17 +24,24 @@ export default function DetectionOutcomes() {
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p>Loading…</p>;
 
+  const missed = data.missed_threat || 0;
+
   const chartData = [
     { name: "Confirmed Threat", count: data.confirmed_threat },
     { name: "False Positive", count: data.false_positive },
     { name: "Authorized Exception", count: data.authorized_exception },
     { name: "Unreviewed", count: data.unreviewed },
+    { name: "Missed by detector", count: missed },
   ];
 
   const reviewedTotal = data.confirmed_threat + data.false_positive + data.authorized_exception;
   const precisionProxy = reviewedTotal > 0
     ? (((data.confirmed_threat + data.authorized_exception) / reviewedTotal) * 100).toFixed(1)
     : null;
+
+  // Of the threats administrators know about, how many did the detector flag?
+  const knownThreats = data.confirmed_threat + missed;
+  const recallProxy = knownThreats > 0 ? ((data.confirmed_threat / knownThreats) * 100).toFixed(1) : null;
 
   return (
     <div>
@@ -56,13 +64,29 @@ export default function DetectionOutcomes() {
           <span className="stat-value">{data.unreviewed_overdue}</span>
           <span className="stat-label">Overdue Review (24h+)</span>
         </div>
+        <div className="stat-card highlight">
+          <span className="stat-value">{missed}</span>
+          <span className="stat-label">Threats the Detector Missed</span>
+        </div>
         {precisionProxy !== null && (
           <div className="stat-card">
             <span className="stat-value">{precisionProxy}%</span>
             <span className="stat-label">Of Reviewed Alerts Were Genuine (Threat or Authorized)</span>
           </div>
         )}
+        {recallProxy !== null && (
+          <div className="stat-card">
+            <span className="stat-value">{recallProxy}%</span>
+            <span className="stat-label">Of Known Threats Were Caught</span>
+          </div>
+        )}
       </div>
+
+      <p className="muted" style={{ marginTop: 12 }}>
+        "Known threats" are sessions an administrator confirmed as threats: those the detector flagged plus those it
+        missed and an administrator reported afterwards. The caught figure includes repeats flagged through patterns
+        learned from earlier verdicts, so it improves as administrators review.
+      </p>
 
       <div className="chart-card" style={{ marginTop: 24 }}>
         <h3>Alerts by Verdict</h3>
