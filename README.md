@@ -70,7 +70,7 @@ The seed prints "No users found" on a fresh database. Ignore it; `create_admin` 
 Optional but recommended, to enable anomaly detection (scoring stays off until a model exists):
 
 ```bash
-docker compose exec backend python -m scripts.seed_synthetic_data
+docker compose exec backend python -m scripts.seed_synthetic_data --create-users 8 --synthetic-users-only
 docker compose exec backend python -m scripts.train_isolation_forest
 docker compose restart backend
 ```
@@ -157,7 +157,7 @@ Because `COMPOSE_FILE` is set in `.env`, plain `docker compose` uses the product
 ```bash
 docker compose exec backend python -m scripts.seed_roles_and_permissions
 docker compose exec backend python -m scripts.create_admin --username admin --email you@example.com
-docker compose exec backend python -m scripts.seed_synthetic_data
+docker compose exec backend python -m scripts.seed_synthetic_data --create-users 8 --synthetic-users-only
 docker compose exec backend python -m scripts.train_isolation_forest
 docker compose restart backend
 ```
