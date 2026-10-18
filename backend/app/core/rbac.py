@@ -53,9 +53,9 @@ def get_current_user(current=Depends(get_current_user_and_session)) -> User:
 
 def require_permission(resource_name: str, action_type: str):
     def dependency(
-        request: Request,
         current=Depends(get_current_user_and_session),
         db: Session = Depends(get_db),
+        request: Request = None,
     ) -> User:
         from app.services.rbac_service import user_has_permission
         user, session_id = current
@@ -66,13 +66,21 @@ def require_permission(resource_name: str, action_type: str):
                 detail=f"Missing permission: {action_type} on {resource_name}",
             )
 
+        # FastAPI always injects the request. It is optional only so the guard can still be
+        # called directly (as unit tests do), in which case it logs exactly what it always did.
+        audit_details = {}
+        if request is not None:
+            audit_details = {
+                "component": component_for(request.url.path),
+                "endpoint": f"{request.method} {request.url.path}"[:200],
+            }
+
         session_service.log_access(
             db,
             session_id=session_id,
             resource_name=resource_name,
             action_type=action_type,
-            component=component_for(request.url.path),
-            endpoint=f"{request.method} {request.url.path}"[:200],
+            **audit_details,
         )
         return user
 
