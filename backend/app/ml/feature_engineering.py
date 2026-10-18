@@ -38,9 +38,29 @@ ZSCORE_SOURCE_COLUMNS = [
 
 FEATURE_COLUMNS = RAW_FEATURE_COLUMNS + [f"{c}_zscore" for c in ZSCORE_SOURCE_COLUMNS]
 
+# --- z-score hardening -------------------------------------------------------------------------
+# A personal z-score only means something once a user has a history to compare against, and a very
+# uniform history must not turn a one-unit difference into a z-score in the millions.
+MIN_HISTORY_FOR_ZSCORE = 5      # normal sessions needed before personal z-scores are used
+RELATIVE_STD_FLOOR = 0.10       # standard deviation is never below 10% of the user's average
+Z_CLIP = 10.0                   # z-scores are clamped to [-Z_CLIP, +Z_CLIP]
+MIN_STD = {                     # absolute floor per feature (in the feature's own units)
+    "session_duration_sec": 60.0,
+    "n_access_events": 1.0,
+    "distinct_resources": 0.5,
+    "n_write": 0.5,
+    "n_delete": 0.5,
+}
+
 
 def _offhours(hour: int) -> int:
     return int(hour < 7 or hour > 19)
+
+
+def _zscore(value: float, mean: float, std: float, floor: float) -> float:
+    scale = max(std, RELATIVE_STD_FLOOR * abs(mean), floor)
+    z = (value - mean) / scale
+    return max(-Z_CLIP, min(Z_CLIP, z))
 
 
 def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
@@ -98,7 +118,7 @@ def build_user_history_stats(
 ) -> dict:
     """
     Mean/std of each ZSCORE_SOURCE_COLUMNS raw feature across this user's
-    OTHER closed sessions.
+    OTHER closed sessions, plus n_sessions (how many sessions that is).
 
     Simulated attack sessions never count toward a baseline (include_simulated
     is kept only for older callers and defaults to False).
@@ -143,11 +163,12 @@ def build_user_history_stats(
     if not other_sessions:
         stats = {f"{c}_mean": 0.0 for c in ZSCORE_SOURCE_COLUMNS}
         stats.update({f"{c}_std": 0.0 for c in ZSCORE_SOURCE_COLUMNS})
+        stats["n_sessions"] = 0
         return stats
 
     raw_rows = [build_raw_session_features(db, s) for s in other_sessions]
 
-    stats = {}
+    stats = {"n_sessions": len(other_sessions)}
     for col in ZSCORE_SOURCE_COLUMNS:
         values = [r[col] for r in raw_rows]
         mean = sum(values) / len(values)
@@ -162,17 +183,26 @@ def build_user_history_stats(
 def build_session_feature_vector(
     db: DBSession, session: UserSession, include_simulated_in_baseline: bool = False
 ) -> dict:
-    """Full feature dict for one session, keyed exactly by FEATURE_COLUMNS."""
+    """
+    Full feature dict for one session, keyed exactly by FEATURE_COLUMNS.
+
+    Personal z-scores are neutral (0.0) until the user has MIN_HISTORY_FOR_ZSCORE normal sessions,
+    use a floored standard deviation, and are clamped to +/- Z_CLIP.
+    """
     raw = build_raw_session_features(db, session)
     stats = build_user_history_stats(
         db, session.user_id, exclude_session_id=session.session_id,
         include_simulated=include_simulated_in_baseline,
     )
+    enough_history = stats["n_sessions"] >= MIN_HISTORY_FOR_ZSCORE
 
     features = dict(raw)
     for col in ZSCORE_SOURCE_COLUMNS:
-        mean = stats[f"{col}_mean"]
-        std = stats[f"{col}_std"]
-        features[f"{col}_zscore"] = (raw[col] - mean) / (std + 1e-6)
+        if enough_history:
+            features[f"{col}_zscore"] = _zscore(
+                raw[col], stats[f"{col}_mean"], stats[f"{col}_std"], MIN_STD[col]
+            )
+        else:
+            features[f"{col}_zscore"] = 0.0
 
     return {col: features[col] for col in FEATURE_COLUMNS}
