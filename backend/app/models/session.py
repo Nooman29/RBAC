@@ -29,5 +29,10 @@ class AccessLog(Base):
     resource_name = Column(String(100), nullable=False)
     access_timestamp = Column(DateTime, default=datetime.utcnow)
     action_performed = Column(String(20), nullable=False)
+    # Friendly name of the part of the dashboard the request belonged to (e.g. "Alerts"),
+    # and the request itself (e.g. "GET /api/dashboard/alerts/12"). Labels only: they do not
+    # add rows, so the anomaly features that count access_logs are unaffected.
+    component = Column(String(60), nullable=True)
+    endpoint = Column(String(200), nullable=True)
 
     session = relationship("UserSession", back_populates="access_logs")

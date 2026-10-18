@@ -38,8 +38,21 @@ def close_session(db: Session, session_id: int) -> Optional[UserSession]:
     return session
 
 
-def log_access(db: Session, session_id: int, resource_name: str, action_type: str) -> AccessLog:
-    log = AccessLog(session_id=session_id, resource_name=resource_name, action_performed=action_type)
+def log_access(
+    db: Session,
+    session_id: int,
+    resource_name: str,
+    action_type: str,
+    component: Optional[str] = None,
+    endpoint: Optional[str] = None,
+) -> AccessLog:
+    log = AccessLog(
+        session_id=session_id,
+        resource_name=resource_name,
+        action_performed=action_type,
+        component=component,
+        endpoint=endpoint,
+    )
     db.add(log)
     db.commit()
     db.refresh(log)

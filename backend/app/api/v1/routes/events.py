@@ -126,6 +126,8 @@ def record_events(
                 session_id=session.session_id,
                 resource_name=item.resource,
                 action_performed=ACTION_FOR_ACCESS_LOG[item.action],
+                component=f"Module: {client.name}"[:60],
+                endpoint="POST /api/v1/events",
             )
         )
 

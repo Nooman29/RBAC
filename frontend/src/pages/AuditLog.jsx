@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
 import { usePermissions } from "../context/PermissionsContext";
@@ -13,9 +13,17 @@ function presetRange(days) {
   };
 }
 
+function describeAction(row) {
+  if (row.source === "ui") return row.action_performed.replaceAll("_", " ");
+  return `${row.resource_name} · ${row.action_performed}`;
+}
+
 export default function AuditLog() {
   const [users, setUsers] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [componentOptions, setComponentOptions] = useState([]);
+  const [selectedComponents, setSelectedComponents] = useState([]);
+  const [source, setSource] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [previewRows, setPreviewRows] = useState(null);
@@ -24,11 +32,12 @@ export default function AuditLog() {
   const [downloading, setDownloading] = useState(false);
   const { can, loaded } = usePermissions();
 
-    useEffect(() => {
+  useEffect(() => {
     if (!loaded) return;
     if (can && can("user", "read")) {
       client.get("/api/users/").then((res) => setUsers(res.data)).catch(() => {});
     }
+    client.get("/api/audit/components").then((res) => setComponentOptions(res.data)).catch(() => {});
   }, [loaded]);
 
   function applyPreset(days) {
@@ -41,6 +50,8 @@ export default function AuditLog() {
     setStartDate("");
     setEndDate("");
     setSelectedUserIds([]);
+    setSelectedComponents([]);
+    setSource("");
     setPreviewRows(null);
   }
 
@@ -50,7 +61,13 @@ export default function AuditLog() {
     );
   }
 
-    function buildParams() {
+  function toggleComponent(name) {
+    setSelectedComponents((prev) =>
+      prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]
+    );
+  }
+
+  function buildParams() {
     const params = new URLSearchParams();
     if (startDate) {
       params.append("start_date", new Date(`${startDate}T00:00:00`).toISOString());
@@ -59,6 +76,8 @@ export default function AuditLog() {
       params.append("end_date", new Date(`${endDate}T23:59:59.999`).toISOString());
     }
     selectedUserIds.forEach((id) => params.append("user_ids", id));
+    selectedComponents.forEach((c) => params.append("components", c));
+    if (source) params.append("source", source);
     return params;
   }
 
@@ -66,8 +85,7 @@ export default function AuditLog() {
     setError("");
     setLoading(true);
     try {
-      const params = buildParams();
-      const res = await client.get(`/api/dashboard/audit-log/preview?${params.toString()}`);
+      const res = await client.get(`/api/audit/preview?${buildParams().toString()}`);
       setPreviewRows(res.data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load preview");
@@ -80,8 +98,7 @@ export default function AuditLog() {
     setError("");
     setDownloading(true);
     try {
-      const params = buildParams();
-      const res = await client.get(`/api/dashboard/audit-log/export?${params.toString()}`, {
+      const res = await client.get(`/api/audit/export?${buildParams().toString()}`, {
         responseType: "blob",
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -99,10 +116,20 @@ export default function AuditLog() {
     }
   }
 
+  const componentCounts = useMemo(() => {
+    const counts = {};
+    (previewRows || []).forEach((r) => {
+      counts[r.component] = (counts[r.component] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [previewRows]);
+
   return (
     <div>
-      <h2>Audit Log Export</h2>
-      <p className="muted">Preview access log records before exporting as CSV.</p>
+      <h2>Audit Log</h2>
+      <p className="muted">
+        What each user did and which part of the system they touched. Preview the records, then export them as CSV.
+      </p>
 
       <div className="panel">
         <div className="preset-row">
@@ -121,7 +148,33 @@ export default function AuditLog() {
             To{" "}
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </label>
+          <label>
+            Activity{" "}
+            <select value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="">All activity</option>
+              <option value="api">Pages and API requests</option>
+              <option value="ui">Interface actions (e.g. notification bell)</option>
+            </select>
+          </label>
         </div>
+
+        {componentOptions.length > 0 && (
+          <div className="user-picker">
+            <p className="muted">Filter by component (leave empty for all):</p>
+            <div className="ds-filters">
+              {componentOptions.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`ds-btn ds-btn-sm${selectedComponents.includes(name) ? " ds-btn-primary" : ""}`}
+                  onClick={() => toggleComponent(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {can && can("user", "read") && (
           <div className="user-picker">
@@ -140,7 +193,6 @@ export default function AuditLog() {
             </div>
           </div>
         )}
-          
 
         <div className="inline-form">
           <button onClick={handlePreview} disabled={loading}>
@@ -155,31 +207,53 @@ export default function AuditLog() {
 
       {previewRows && (
         <div className="panel">
-          <h3>Preview ({previewRows.length} row{previewRows.length === 1 ? "" : "s"}{previewRows.length === 500 ? ", capped" : ""})</h3>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Username</th>
-                <th>Department</th>
-                <th>Session</th>
-                <th>Resource</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {previewRows.map((r) => (
-                <tr key={r.log_id}>
-                  <td>{parseUtc(r.timestamp).toLocaleString()}</td>
-                  <td>{r.username}</td>
-                  <td>{r.department}</td>
-                  <td>{r.session_id}</td>
-                  <td>{r.resource_name}</td>
-                  <td>{r.action_performed}</td>
-                </tr>
+          <h3>
+            Preview ({previewRows.length} row{previewRows.length === 1 ? "" : "s"}
+            {previewRows.length === 500 ? ", capped" : ""})
+          </h3>
+
+          {componentCounts.length > 0 && (
+            <p>
+              {componentCounts.map(([name, count]) => (
+                <span key={name} className="ds-chip">{name}: {count}</span>
               ))}
-            </tbody>
-          </table>
+            </p>
+          )}
+
+          <div className="ds-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Username</th>
+                  <th>Department</th>
+                  <th>Component</th>
+                  <th>Action</th>
+                  <th>Request</th>
+                  <th>Session</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((r) => (
+                  <tr key={r.entry_id}>
+                    <td>{parseUtc(r.timestamp).toLocaleString()}</td>
+                    <td>{r.username}</td>
+                    <td>{r.department}</td>
+                    <td><strong>{r.component}</strong></td>
+                    <td>{describeAction(r)}</td>
+                    <td className="ds-mono">{r.endpoint || "—"}</td>
+                    <td>{r.session_id ?? "—"}</td>
+                    <td>
+                      <span className={`ds-pill ${r.source === "ui" ? "ds-pill-off" : "ds-pill-ok"}`}>
+                        {r.source === "ui" ? "UI" : "API"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {previewRows.length === 0 && <p className="muted">No matching records.</p>}
         </div>
       )}
