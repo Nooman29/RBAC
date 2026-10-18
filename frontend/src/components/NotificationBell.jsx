@@ -3,6 +3,11 @@ import { Link } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
 
+// Interface actions are reported to the audit log. Polling is never reported.
+function reportUi(action) {
+  client.post("/api/audit/ui-event", { component: "Notifications", action }).catch(() => {});
+}
+
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -44,11 +49,15 @@ export default function NotificationBell() {
   async function toggleOpen() {
     const next = !open;
     setOpen(next);
-    if (next) await fetchNotifications();
+    if (next) {
+      reportUi("opened");
+      await fetchNotifications();
+    }
   }
 
   async function markAllRead() {
     await client.post("/api/notifications/read-all");
+    reportUi("marked_all_read");
     setUnreadCount(0);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }
@@ -83,6 +92,7 @@ export default function NotificationBell() {
               to={n.alert_id ? `/alerts/${n.alert_id}` : "/alerts"}
               className={`notif-item ${n.is_read ? "" : "unread"}`}
               onClick={() => {
+                reportUi("opened_item");
                 if (!n.is_read) markOneRead(n.notification_id);
                 setOpen(false);
               }}
