@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meal Attendance (demo module)</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f6fb; color: #1c2536; margin: 0; }
+  header { background: #0f172a; color: #fff; padding: 18px 24px; }
+  header h1 { margin: 0; font-size: 1.2rem; }
+  header p { margin: 6px 0 0; color: #b9c6e0; font-size: 0.9rem; max-width: 760px; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px; }
+  section { background: #fff; border: 1px solid #e3e8f1; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  label { display: block; font-size: 0.8rem; font-weight: 600; color: #6b768a; margin: 10px 0 4px; }
+  input, select { padding: 8px 10px; border: 1px solid #d5dbe6; border-radius: 8px; font-size: 0.9rem; }
+  button { padding: 8px 14px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; margin: 6px 6px 0 0; }
+  button.secondary { background: #fff; color: #2563eb; border: 1px solid #d5dbe6; }
+  button.small { padding: 4px 10px; font-size: 0.8rem; margin: 0 6px 0 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eef1f6; font-size: 0.9rem; }
+  .denied { color: #b42318; font-weight: 600; }
+  .ok { color: #067647; font-weight: 600; }
+  .muted { color: #6b768a; font-size: 0.85rem; }
+  pre { background: #0f172a; color: #d7e3ff; padding: 12px; border-radius: 8px; max-height: 340px; overflow: auto; font-size: 0.78rem; white-space: pre-wrap; margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>School Meal Attendance <small>(demo module)</small></h1>
+  <p>This module has no accounts and no permission rules of its own. It signs users in through the central RBAC service and asks it before every action. The panel at the bottom shows what the service answered.</p>
+</header>
+<main>
+  <section id="loginBox">
+    <h2>Sign in</h2>
+    <div id="stepPassword">
+      <label for="u">Username</label>
+      <input id="u" autocomplete="username">
+      <label for="p">Password</label>
+      <input id="p" type="password" autocomplete="current-password">
+      <div><button id="signIn">Continue</button></div>
+    </div>
+    <div id="stepCode" hidden>
+      <p class="muted">A 6-digit code was emailed to you.</p>
+      <label for="code">Code</label>
+      <input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+      <div><button id="verify">Verify</button><button id="back" class="secondary">Start over</button></div>
+    </div>
+    <p id="msg" class="denied"></p>
+  </section>
+
+  <section id="appBox" hidden>
+    <h2>Signed in</h2>
+    <p id="who"></p>
+    <div><button id="signOut" class="secondary">Sign out</button></div>
+
+    <h2 style="margin-top:18px">School attendance</h2>
+    <label for="school">School</label>
+    <select id="school"><option>SCH-1</option><option>SCH-2</option></select>
+    <button id="view">View attendance</button>
+    <div id="students"></div>
+
+    <h2 style="margin-top:18px">Check a child</h2>
+    <label for="child">Student id</label>
+    <input id="child" value="STU-1001">
+    <button id="checkChild">Check attendance</button>
+    <div id="childResult"></div>
+  </section>
+
+  <section>
+    <h2>What the central service answered</h2>
+    <pre id="log">Nothing yet.</pre>
+  </section>
+</main>
+
+<script>
+  let token = null;
+  let pending = null;
+  let history = "";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function redact(value) {
+    if (Array.isArray(value)) return value.map(redact);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([k, v]) =>
+        (k === "access_token" || k === "pending_token") ? [k, "(hidden)"] : [k, redact(v)]));
+    }
+    return value;
+  }
+
+  function log(title, status, body) {
+    history = `${new Date().toLocaleTimeString()}  ${title}  ->  ${status}\n${JSON.stringify(redact(body), null, 2)}\n\n` + history;
+    $("log").textContent = history;
+  }
+
+  function resetUi(message) {
+    token = null;
+    pending = null;
+    $("loginBox").hidden = false;
+    $("appBox").hidden = true;
+    $("stepPassword").hidden = false;
+    $("stepCode").hidden = true;
+    $("p").value = "";
+    $("code").value = "";
+    $("students").innerHTML = "";
+    $("childResult").innerHTML = "";
+    $("msg").textContent = message || "";
+  }
+
+  async function api(method, path, body, useToken = true) {
+    const headers = { "Content-Type": "application/json" };
+    if (useToken && token) headers["Authorization"] = "Bearer " + token;
+    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    log(`${method} ${path}`, res.status, data);
+    if (res.status === 401 && useToken && token) resetUi("Your session ended. Please sign in again.");
+    return { ok: res.ok, status: res.status, data: data || {} };
+  }
+
+  async function signIn() {
+    $("msg").textContent = "";
+    const r = await api("POST", "/api/login", { username: $("u").value.trim(), password: $("p").value }, false);
+    if (!r.ok) { $("msg").textContent = r.data.detail || "Sign-in failed"; return; }
+    if (r.data.status === "first_time_setup_required") {
+      $("msg").textContent = "Finish account setup in the RBAC portal first."; return;
+    }
+    pending = r.data.pending_token;
+    const c = await api("POST", "/api/send-code", { pending_token: pending }, false);
+    if (!c.ok) { $("msg").textContent = c.data.detail || "Could not send the code"; return; }
+    $("stepPassword").hidden = true;
+    $("stepCode").hidden = false;
+  }
+
+  async function verify() {
+    $("msg").textContent = "";
+    const r = await api("POST", "/api/verify", { pending_token: pending, code: $("code").value.trim() }, false);
+    if (!r.ok) { $("msg").textContent = r.data.detail || "Wrong or expired code"; return; }
+    token = r.data.access_token;
+    await loadMe();
+  }
+
+  async function loadMe() {
+    const r = await api("GET", "/api/me");
+    if (!r.ok) { resetUi(r.data.detail || "Could not read your profile"); return; }
+    const d = r.data;
+    $("who").innerHTML = `<strong>${esc(d.username)}</strong> &middot; role: ${esc(d.roles.join(", ") || "none")}` +
+      (d.school_id ? ` &middot; school: ${esc(d.school_id)}` : "");
+    $("loginBox").hidden = true;
+    $("appBox").hidden = false;
+    if (d.school_id && [...$("school").options].some((o) => o.value === d.school_id)) $("school").value = d.school_id;
+  }
+
+  async function viewSchool() {
+    const school = $("school").value;
+    const r = await api("GET", `/api/schools/${encodeURIComponent(school)}/attendance`);
+    const box = $("students");
+    if (!r.ok) { box.innerHTML = `<p class="denied">Denied: ${esc(r.data.detail || r.status)}</p>`; return; }
+    const rows = r.data.students.map((s) => {
+      const state = s.present === true ? '<span class="ok">Present</span>'
+        : s.present === false ? '<span class="denied">Absent</span>' : '<span class="muted">Not marked</span>';
+      return `<tr><td>${esc(s.name)} <span class="muted">${esc(s.student_id)}</span></td><td>${state}</td>` +
+        `<td><button class="small" data-student="${esc(s.student_id)}" data-present="true">Present</button>` +
+        `<button class="small secondary" data-student="${esc(s.student_id)}" data-present="false">Absent</button></td></tr>`;
+    }).join("");
+    box.innerHTML = `<p class="ok">Allowed by the central service.</p>` +
+      `<table><thead><tr><th>Student</th><th>Today</th><th>Mark</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.querySelectorAll("button[data-student]").forEach((b) => {
+      b.onclick = () => mark(school, b.dataset.student, b.dataset.present === "true");
+    });
+  }
+
+  async function mark(school, studentId, present) {
+    const r = await api("POST", `/api/schools/${encodeURIComponent(school)}/attendance`, { student_id: studentId, present });
+    if (!r.ok) {
+      $("students").insertAdjacentHTML("afterbegin", `<p class="denied">Denied: ${esc(r.data.detail || r.status)}</p>`);
+      return;
+    }
+    await viewSchool();
+  }
+
+  async function checkChild() {
+    const id = $("child").value.trim();
+    const r = await api("GET", `/api/children/${encodeURIComponent(id)}/attendance`);
+    const state = r.data.present === true ? "present" : r.data.present === false ? "absent" : "not marked";
+    $("childResult").innerHTML = r.ok
+      ? `<p class="ok">Allowed. ${esc(r.data.name)} today: ${state}.</p>`
+      : `<p class="denied">Denied: ${esc(r.data.detail || r.status)}</p>`;
+  }
+
+  async function signOut() {
+    await api("POST", "/api/logout");
+    resetUi("Signed out.");
+  }
+
+  $("signIn").onclick = signIn;
+  $("verify").onclick = verify;
+  $("back").onclick = () => resetUi("");
+  $("signOut").onclick = signOut;
+  $("view").onclick = viewSchool;
+  $("checkChild").onclick = checkChild;
+</script>
+</body>
+</html>
