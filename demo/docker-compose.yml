@@ -1,0 +1,20 @@
+# Demo "School Meal Attendance" module. Run it from the repository root:
+#   $env:DSFS_CLIENT_ID = "dsfs_cl_..."; $env:DSFS_CLIENT_SECRET = "dsfs_sk_..."
+#   docker compose -f demo/docker-compose.yml up
+services:
+  attendance:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./attendance_module:/app
+      - ../integration/python:/client:ro
+    environment:
+      PYTHONPATH: /client
+      DSFS_AUTH_URL: ${DSFS_AUTH_URL:-http://host.docker.internal:8000}
+      DSFS_CLIENT_ID: ${DSFS_CLIENT_ID:?set DSFS_CLIENT_ID}
+      DSFS_CLIENT_SECRET: ${DSFS_CLIENT_SECRET:?set DSFS_CLIENT_SECRET}
+    command: sh -c "pip install -q fastapi uvicorn requests && uvicorn app:app --host 0.0.0.0 --port 9000"
+    ports:
+      - "9000:9000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
