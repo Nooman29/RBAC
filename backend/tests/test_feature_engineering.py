@@ -81,6 +81,21 @@ def test_new_ip_flag_compares_against_prior_locations(db, make_user):
     assert fe.build_raw_session_features(db, unknown)["new_ip"] == 1
 
 
+def test_first_session_is_not_a_new_ip(db, make_user):
+    user = make_user()
+    first = _session(db, user, SATURDAY_NIGHT, duration=60, location="203.0.113.9")
+
+    assert fe.build_raw_session_features(db, first)["new_ip"] == 0
+
+
+def test_new_ip_needs_at_least_one_earlier_address_on_record(db, make_user):
+    user = make_user()
+    _session(db, user, SATURDAY_NIGHT - timedelta(days=1), duration=60, location=None)
+    s = _session(db, user, SATURDAY_NIGHT, duration=60, location="10.0.0.1")
+
+    assert fe.build_raw_session_features(db, s)["new_ip"] == 0
+
+
 def test_baseline_excludes_simulated_and_unreviewed_flagged_sessions(db, make_user):
     user = make_user()
     base = SATURDAY_NIGHT - timedelta(days=10)
@@ -108,6 +123,39 @@ def test_false_positive_verdict_returns_session_to_baseline(db, make_user):
     stats = fe.build_user_history_stats(db, user.user_id)
 
     assert stats["session_duration_sec_mean"] == pytest.approx(500.0)
+
+
+# ---- point-in-time baseline (no leakage from the user's future) --------------------------------
+
+def test_baseline_is_point_in_time(db, make_user):
+    user = make_user()
+    _history(db, user, [1000.0] * 6)                                        # six earlier sessions
+    target = _session(db, user, SATURDAY_NIGHT, duration=1100.0)
+    _history(db, user, [50_000.0] * 6, start=SATURDAY_NIGHT + timedelta(days=1))   # LATER sessions
+
+    everything = fe.build_user_history_stats(db, user.user_id, exclude_session_id=target.session_id)
+    point_in_time = fe.build_user_history_stats(
+        db, user.user_id, exclude_session_id=target.session_id, before=target.login_time
+    )
+    vector = fe.build_session_feature_vector(db, target)
+
+    assert everything["n_sessions"] == 12
+    assert point_in_time["n_sessions"] == 6
+    assert point_in_time["session_duration_sec_mean"] == pytest.approx(1000.0)
+    # (1100 - 1000) / max(std 0, 10% of 1000 = 100, floor 60) = 1.0; the later 50,000 s sessions have no effect
+    assert vector["session_duration_sec_zscore"] == pytest.approx(1.0, rel=1e-4)
+
+
+def test_later_sessions_do_not_change_an_earlier_sessions_features(db, make_user):
+    user = make_user()
+    _history(db, user, [1000.0, 1200.0, 900.0, 1100.0, 1000.0, 950.0])
+    target = _session(db, user, SATURDAY_NIGHT, duration=1500.0)
+    before_vector = fe.build_session_feature_vector(db, target)
+
+    _history(db, user, [90_000.0] * 8, start=SATURDAY_NIGHT + timedelta(days=1))
+    after_vector = fe.build_session_feature_vector(db, target)
+
+    assert before_vector == after_vector
 
 
 # ---- z-score behaviour -----------------------------------------------------------------------

@@ -91,7 +91,13 @@ def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
         .all()
         if loc
     }
-    new_ip = int(bool(session.access_location) and session.access_location not in prior_locations)
+    # An address can only be unfamiliar if the user has at least one earlier address on record:
+    # a first-ever login has nothing to be unfamiliar against.
+    new_ip = int(
+        bool(session.access_location)
+        and bool(prior_locations)
+        and session.access_location not in prior_locations
+    )
 
     duration = session.session_duration if session.session_duration is not None else 0.0
 
@@ -115,10 +121,16 @@ def build_user_history_stats(
     user_id: int,
     exclude_session_id: Optional[int] = None,
     include_simulated: bool = False,
+    before: Optional[datetime] = None,
 ) -> dict:
     """
     Mean/std of each ZSCORE_SOURCE_COLUMNS raw feature across this user's
     OTHER closed sessions, plus n_sessions (how many sessions that is).
+
+    before: only sessions that started strictly before this time count (point-in-time baseline).
+    Scoring and training both pass the session's own login time, so a session is never compared
+    with the user's FUTURE behaviour; without this, training features would leak information
+    that does not exist when a session is scored live.
 
     Simulated attack sessions never count toward a baseline (include_simulated
     is kept only for older callers and defaults to False).
@@ -143,6 +155,8 @@ def build_user_history_stats(
         query = query.filter(UserSession.simulated_scenario.is_(None))
     if exclude_session_id is not None:
         query = query.filter(UserSession.session_id != exclude_session_id)
+    if before is not None:
+        query = query.filter(UserSession.login_time < before)
 
     query = query.filter(
         or_(
@@ -186,13 +200,15 @@ def build_session_feature_vector(
     """
     Full feature dict for one session, keyed exactly by FEATURE_COLUMNS.
 
-    Personal z-scores are neutral (0.0) until the user has MIN_HISTORY_FOR_ZSCORE normal sessions,
-    use a floored standard deviation, and are clamped to +/- Z_CLIP.
+    The baseline is point-in-time (only sessions before this one). Personal z-scores are neutral
+    (0.0) until the user has MIN_HISTORY_FOR_ZSCORE normal sessions, use a floored standard
+    deviation, and are clamped to +/- Z_CLIP.
     """
     raw = build_raw_session_features(db, session)
     stats = build_user_history_stats(
         db, session.user_id, exclude_session_id=session.session_id,
         include_simulated=include_simulated_in_baseline,
+        before=session.login_time,
     )
     enough_history = stats["n_sessions"] >= MIN_HISTORY_FOR_ZSCORE
 
