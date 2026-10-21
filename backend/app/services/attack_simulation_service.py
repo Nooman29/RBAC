@@ -107,7 +107,14 @@ def _pick_weekday_offset(now: datetime) -> int:
     return random.choice(options or [1])
 
 
-def run_scenario(db: DBSession, user_id: int, scenario_key: str) -> dict:
+def create_scenario_session(
+    db: DBSession, user_id: int, scenario_key: str, day=None
+) -> UserSession:
+    """
+    Creates the simulated session and its access logs WITHOUT scoring it.
+
+    day: a date or datetime choosing the calendar day; by default a recent weekday.
+    """
     if scenario_key not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario_key}")
     cfg = SCENARIOS[scenario_key]
@@ -122,9 +129,12 @@ def run_scenario(db: DBSession, user_id: int, scenario_key: str) -> dict:
     # chosen so the jitter never moves a login across the off-hours boundary.
     hour_jitter = random.choice([-1, 0, 0, 1])
     jittered_hour = max(0, min(23, cfg["login_hour"] + hour_jitter))
-    day_offset = _pick_weekday_offset(now)
+    if day is None:
+        base_day = now - timedelta(days=_pick_weekday_offset(now))
+    else:
+        base_day = datetime(day.year, day.month, day.day)
 
-    login_time = (now - timedelta(days=day_offset)).replace(
+    login_time = base_day.replace(
         hour=jittered_hour, minute=random.randint(0, 59), second=random.randint(0, 59), microsecond=0
     )
 
@@ -169,6 +179,13 @@ def run_scenario(db: DBSession, user_id: int, scenario_key: str) -> dict:
             )
         )
     db.commit()
+    return session
+
+
+def run_scenario(db: DBSession, user_id: int, scenario_key: str) -> dict:
+    session = create_scenario_session(db, user_id, scenario_key)
+    cfg = SCENARIOS[scenario_key]
+    user = db.query(User).filter(User.user_id == user_id).first()
 
     alert = anomaly_service.score_session(db, session.session_id)
 
