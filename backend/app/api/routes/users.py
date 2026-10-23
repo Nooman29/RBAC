@@ -8,9 +8,9 @@ from app.services import welcome_email_service
 
 from app.db.database import get_db
 from app.core.security import hash_password
+from app.core.visibility import visibility_scope, apply_visibility, in_scope, out_of_scope_message
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user import UserCreate, UserOut
 from app.core.rbac import require_permission
 from app.services import rbac_service
 from app.models.session import UserSession, AccessLog
@@ -23,7 +23,11 @@ from app.schemas.user import UserCreate, UserOut, UpdateDepartmentRequest, SetRo
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
+# Used only for the lock-out guards below (never remove or delete the last Administrator).
+# Who can SEE which users is decided by role scope, in app/core/visibility.py.
 ADMIN_ROLE_NAME = "Administrator"
+
+SETUP_TOKEN_EXPIRE_HOURS = 48
 
 
 def _count_administrators(db: Session, exclude_user_id: int = None) -> int:
@@ -35,6 +39,7 @@ def _count_administrators(db: Session, exclude_user_id: int = None) -> int:
 
 def _is_administrator(user: User) -> bool:
     return any(r.role_name == ADMIN_ROLE_NAME for r in user.roles)
+
 
 @router.put("/{user_id}/role", response_model=UserOut)
 def set_user_role(
@@ -77,22 +82,25 @@ def list_users(
     current_user: User = Depends(require_permission("user", "read")),
     db: Session = Depends(get_db),
 ):
-    role_names = {r.role_name for r in current_user.roles}
-    query = db.query(User)
-    if "Administrator" not in role_names:
-        query = query.filter(User.department == current_user.department)
-    return query.all()
+    # global -> everyone, school -> same school, department -> same department,
+    # organization -> same supplier organisation, own -> just themselves
+    scope = visibility_scope(current_user)
+    return apply_visibility(db.query(User), scope).all()
 
 
-@router.get("/{user_id}", response_model=UserOut, dependencies=[Depends(require_permission("user", "read"))])
-def get_user(user_id: int, db: Session = Depends(get_db)):
+@router.get("/{user_id}", response_model=UserOut)
+def get_user(
+    user_id: int,
+    current_user: User = Depends(require_permission("user", "read")),
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    scope = visibility_scope(current_user)
+    if not in_scope(user, scope):
+        raise HTTPException(status_code=403, detail=out_of_scope_message("user", scope))
     return user
-
-
-SETUP_TOKEN_EXPIRE_HOURS = 48
 
 
 @router.post("/", response_model=UserOut, dependencies=[Depends(require_permission("user", "write"))])
@@ -154,7 +162,7 @@ def update_department(user_id: int, payload: UpdateDepartmentRequest, db: Sessio
     db.refresh(user)
     return user
 
-SETUP_TOKEN_EXPIRE_HOURS = 48
+
 @router.post(
     "/{user_id}/resend-setup-email",
     dependencies=[Depends(require_permission("user", "write"))],
@@ -175,6 +183,7 @@ def resend_setup_email(user_id: int, db: Session = Depends(get_db)):
     if not sent:
         raise HTTPException(status_code=500, detail="Failed to send setup email.")
     return {"detail": "Setup email resent."}
+
 
 @router.delete("/{user_id}")
 def delete_user(

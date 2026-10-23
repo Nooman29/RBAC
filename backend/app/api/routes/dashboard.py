@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.core.rbac import require_permission
 from app.core.config import settings
+from app.core.visibility import (
+    visibility_scope as _visibility_scope,
+    apply_visibility as _apply_visibility,
+    in_scope as _in_scope,
+    out_of_scope_message,
+)
 from app.core.constants import REVIEW_VERDICTS
 from app.models.session import UserSession
 from app.models.user import User
@@ -39,57 +45,23 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 OVERDUE_HOURS = 24
 
 
-def _visibility_scope(current_user: User) -> dict:
-    """
-    Three-tier visibility for all dashboard-family data:
-      - Administrator -> sees everything: {"level": "all"}
-      - Manager       -> sees their own department only:
-                         {"level": "department", "department": <dept>}
-      - Everyone else (Standard User) -> sees only their own activity:
-                         {"level": "self", "user_id": <id>}
-    """
-    role_names = {r.role_name for r in current_user.roles}
-    if "Administrator" in role_names:
-        return {"level": "all"}
-    if "Manager" in role_names:
-        return {"level": "department", "department": current_user.department}
-    return {"level": "self", "user_id": current_user.user_id}
-
-
-def _apply_visibility(query, scope: dict):
-    """Applies the scope to any query already joined against the User table."""
-    if scope["level"] == "all":
-        return query
-    if scope["level"] == "department":
-        return query.filter(User.department == scope["department"])
-    return query.filter(User.user_id == scope["user_id"])
-
-
-def _in_scope(user: Optional[User], scope: dict) -> bool:
-    if scope["level"] == "all":
-        return True
-    if user is None:
-        return False
-    if scope["level"] == "department":
-        return user.department == scope["department"]
-    return user.user_id == scope["user_id"]
+# Visibility (who sees which sessions, alerts and audit entries) comes from each role's
+# scope column -- global / school / department / organization / own -- not from role
+# names. See app/core/visibility.py. Administrator (global), Manager (department) and
+# Standard User (own) behave exactly as before; the DSFS roles now get their own scopes.
 
 
 def _assert_alert_in_scope(alert: AnomalyAlert, scope: dict):
     session = alert.session
     user = session.user if session else None
     if not _in_scope(user, scope):
-        if scope["level"] == "department":
-            raise HTTPException(status_code=403, detail="This alert belongs to a different department.")
-        raise HTTPException(status_code=403, detail="This alert does not belong to your account.")
+        raise HTTPException(status_code=403, detail=out_of_scope_message("alert", scope))
 
 
 def _assert_session_in_scope(session: UserSession, scope: dict):
     user = session.user
     if not _in_scope(user, scope):
-        if scope["level"] == "department":
-            raise HTTPException(status_code=403, detail="This session belongs to a different department.")
-        raise HTTPException(status_code=403, detail="This session does not belong to your account.")
+        raise HTTPException(status_code=403, detail=out_of_scope_message("session", scope))
 
 
 def _is_overdue(alert: AnomalyAlert) -> bool:
@@ -234,6 +206,10 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         access_location=session.access_location if session else None,
         session_terminated=session.terminated if session else False,
         session_active=(session.logout_time is None and not session.terminated) if session else False,
+        threshold_used=alert.threshold_used,
+        risk_tier=alert.risk_tier,
+        is_learning=alert.is_learning,
+        prior_sessions=alert.prior_sessions,
     )
 
 

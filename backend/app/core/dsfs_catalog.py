@@ -1,7 +1,7 @@
 """
 Single source of truth for the Digital School Feeding System (DSFS) access model.
 
-Describes resources, actions, scopes and role policies. Nothing here touches
+Describes resources, actions, scopes, risk tiers and role policies. Nothing here touches
 the database; the seed script reads it.
 
 The three original roles (Administrator, Manager, Standard User) are NOT
@@ -40,6 +40,40 @@ ROLE_SCOPES = {
     "Parent/Guardian": "own",
     "Auditor": "global",
 }
+
+# Risk tier per role -> which anomaly threshold applies to that role's sessions.
+#   high     -> stricter threshold (90th percentile of training scores): roles that can
+#               move money, see every school, or export bulk data
+#   standard -> default threshold (95th percentile)
+#   low      -> looser threshold (97th percentile): read-only access to one's own records
+# The three original roles stay "standard" so the anomaly simulation demo behaves
+# exactly as before. Roles not listed here are "standard".
+RISK_TIERS = ["high", "standard", "low"]          # most to least strict
+TIER_PERCENTILES = {"high": 90, "standard": 95, "low": 97}
+
+ROLE_RISK_TIERS = {
+    "Administrator": "standard",
+    "Manager": "standard",
+    "Standard User": "standard",
+    "Programme Administrator": "high",
+    "Finance Officer": "high",
+    "Auditor": "high",
+    "School Administrator": "standard",
+    "Teacher": "standard",
+    "School Staff": "standard",
+    "Logistics Officer": "standard",
+    "Supplier": "standard",
+    "Parent/Guardian": "low",
+}
+
+
+def risk_tier_for_roles(role_names) -> str:
+    """A user with several roles gets the strictest tier among them."""
+    tiers = [ROLE_RISK_TIERS.get(name, "standard") for name in role_names]
+    if not tiers:
+        return "standard"
+    return min(tiers, key=RISK_TIERS.index)
+
 
 DSFS_ROLE_DESCRIPTIONS = {
     "Programme Administrator": "Oversees the feeding programme across all schools: monitoring, fraud review and reporting.",
@@ -128,6 +162,11 @@ def validate_catalog() -> None:
     for role, scope in ROLE_SCOPES.items():
         assert scope in SCOPES, f"{role}: unknown scope '{scope}'"
 
+    for role, tier in ROLE_RISK_TIERS.items():
+        assert tier in RISK_TIERS, f"{role}: unknown risk tier '{tier}'"
+        assert role in ROLE_SCOPES, f"{role}: has a risk tier but no scope"
+    assert set(TIER_PERCENTILES) == set(RISK_TIERS), "Every risk tier needs a percentile"
+
     assert set(DSFS_ROLE_POLICIES) == set(DSFS_ROLE_DESCRIPTIONS), \
         "Every DSFS role needs both a policy and a description"
 
@@ -144,13 +183,14 @@ def validate_catalog() -> None:
 def print_matrix() -> None:
     cols = [r for r in RESOURCES if any(r in p for p in DSFS_ROLE_POLICIES.values())]
     width = max(len(r) for r in DSFS_ROLE_POLICIES) + 2
-    print("Role".ljust(width) + "Scope".ljust(14) + " | ".join(c[:11].ljust(11) for c in cols))
+    print("Role".ljust(width) + "Scope".ljust(14) + "Tier".ljust(10) + " | ".join(c[:11].ljust(11) for c in cols))
     for role, policy in DSFS_ROLE_POLICIES.items():
         cells = []
         for c in cols:
             acts = policy.get(c, [])
             cells.append("".join(a[0].upper() for a in acts).ljust(11) or "-".ljust(11))
-        print(role.ljust(width) + ROLE_SCOPES[role].ljust(14) + " | ".join(cells))
+        print(role.ljust(width) + ROLE_SCOPES[role].ljust(14) + ROLE_RISK_TIERS.get(role, "standard").ljust(10)
+              + " | ".join(cells))
     print("\nLegend: R=read W=write A=approve E=export")
 
 

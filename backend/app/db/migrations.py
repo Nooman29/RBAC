@@ -32,6 +32,11 @@ _SCHEMA_STATEMENTS = [
     # Component-level audit log
     "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS component VARCHAR(60)",
     "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS endpoint VARCHAR(200)",
+    # Adaptive thresholds and cold start on each alert
+    "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS threshold_used DOUBLE PRECISION",
+    "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS risk_tier VARCHAR(20)",
+    "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS is_learning BOOLEAN",
+    "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS prior_sessions INTEGER",
 ]
 
 

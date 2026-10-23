@@ -71,6 +71,14 @@ const ICONS = {
       <line x1="15" y1="9" x2="15.01" y2="9" />
     </>
   ),
+  access: (
+    <>
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="M10.7 12.3 21 2" />
+      <path d="M16 7l3 3" />
+      <path d="M19 4l2 2" />
+    </>
+  ),
   logout: (
     <>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -113,7 +121,7 @@ export function buildNavGroups(can, loaded) {
   const groups = [
     {
       label: "Overview",
-      items: [{ to: "/", label: "Dashboard", icon: "dashboard", end: true, show: true }],
+      items: [{ to: "/", label: "Dashboard", icon: "dashboard", end: true, show: allow("dashboard", "read") }],
     },
     {
       label: "Security",
@@ -146,7 +154,10 @@ export function buildNavGroups(can, loaded) {
     },
     {
       label: "Account",
-      items: [{ to: "/face-id-setup", label: "Face ID Setup", icon: "face", show: true }],
+      items: [
+        { to: "/my-access", label: "My Access", icon: "access", show: true },
+        { to: "/face-id-setup", label: "Face ID Setup", icon: "face", show: true },
+      ],
     },
   ];
 
