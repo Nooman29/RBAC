@@ -43,6 +43,11 @@ class AnomalyAlertDetail(AnomalyAlertSummary):
     access_location: Optional[str] = None
     session_terminated: bool = False
     session_active: bool = False
+    # Adaptive thresholds and cold start (None on alerts scored before these were stored)
+    threshold_used: Optional[float] = None
+    risk_tier: Optional[str] = None
+    is_learning: Optional[bool] = None
+    prior_sessions: Optional[int] = None
 
 
 class AlertReviewUpdate(BaseModel):

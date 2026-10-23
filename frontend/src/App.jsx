@@ -20,6 +20,7 @@ import DetectionOutcomes from "./pages/DetectionOutcomes";
 import Integrations from "./pages/Integrations";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import MyAccess from "./pages/MyAccess";
 import NotificationBell from "./components/NotificationBell";
 import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 import Sidebar, { Icon, buildNavGroups } from "./components/Sidebar";
@@ -85,6 +86,15 @@ function Layout({ children }) {
   );
 }
 
+// Roles without the security dashboard (most DSFS roles: they work in the module apps)
+// land on My Access instead of a dashboard they are not allowed to load.
+function Home() {
+  const { can, loaded } = usePermissions();
+  if (!loaded) return <p>Loading…</p>;
+  if (!can("dashboard", "read")) return <Navigate to="/my-access" replace />;
+  return <Dashboard />;
+}
+
 function ProtectedRoute({ children }) {
   const { token } = useAuth();
   if (!token) return <Navigate to="/login" replace />;
@@ -109,7 +119,7 @@ function App() {
           <Route path="/first-time-setup" element={<FirstTimeSetup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/" element={<Wrapped><Dashboard /></Wrapped>} />
+          <Route path="/" element={<Wrapped><Home /></Wrapped>} />
           <Route path="/sessions" element={<Wrapped><Sessions /></Wrapped>} />
           <Route path="/alerts" element={<Wrapped><Alerts /></Wrapped>} />
           <Route path="/alerts/:alertId" element={<Wrapped><AlertDetail /></Wrapped>} />
@@ -121,6 +131,7 @@ function App() {
           <Route path="/simulate-attack" element={<Wrapped><SimulateAttack /></Wrapped>} />
           <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
           <Route path="/integrations" element={<Wrapped><Integrations /></Wrapped>} />
+          <Route path="/my-access" element={<Wrapped><MyAccess /></Wrapped>} />
           <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />
         </Routes>
       </PermissionsProvider>

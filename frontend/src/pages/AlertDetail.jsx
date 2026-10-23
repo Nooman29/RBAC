@@ -25,6 +25,12 @@ const FEATURE_META = {
   n_delete_zscore: { label: "Delete volume vs. usual", isZScore: true, baseKey: "n_delete", baseLabel: "Delete volume" },
 };
 
+const TIER_LABELS = {
+  high: "high-privilege tier, stricter",
+  standard: "standard tier",
+  low: "low-risk tier, looser",
+};
+
 const VERDICT_LABELS = {
   confirmed_threat: "Confirmed Threat",
   false_positive: "False Positive",
@@ -145,11 +151,28 @@ export default function AlertDetail() {
           <strong>Anomaly score:</strong> {alert.anomaly_score.toFixed(4)} {alert.is_anomaly ? "⚠️ Flagged" : ""}
         </div>
         <div>
+          <strong>Threshold:</strong>{" "}
+          {alert.threshold_used != null
+            ? `${alert.threshold_used.toFixed(4)} (${TIER_LABELS[alert.risk_tier] || alert.risk_tier || "standard tier"})`
+            : "not recorded (scored before per-role thresholds were added)"}
+        </div>
+        <div>
           <strong>Detection method:</strong>{" "}
           {alert.is_anomaly ? describeDetection(alert.detection_reason) : "Not flagged by the detector"}
         </div>
         {patternText && <div><strong>Behavior pattern:</strong> {patternText}</div>}
       </div>
+
+      {alert.is_learning && (
+        <div className="drift-nudge">
+          <strong>Learning period</strong>
+          <p>
+            This user had only {alert.prior_sessions ?? 0} earlier session(s) when this one was scored, so their
+            personal baseline was not ready yet. The "vs. usual" comparisons were neutral, and the score rests on
+            the raw behaviour (time of day, location, activity volume) and on earlier verdicts.
+          </p>
+        </div>
+      )}
 
       <div className="session-status">
         {alert.session_terminated ? (

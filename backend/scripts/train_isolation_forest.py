@@ -23,10 +23,12 @@ Which sessions are used:
 Threshold strategy:
     There is no ground-truth label for live sessions (unlike CERT), so we
     can't tune a threshold against F1 the way the offline notebook did.
-    Instead the threshold is a chosen PERCENTILE of the training score
-    distribution (default: top 5% most anomalous = flagged) — a first,
-    honest, deployable baseline until enough live volume exists to do
-    proper validation the way the CERT notebook did.
+    Instead each threshold is a chosen PERCENTILE of the training score
+    distribution. One cutoff is saved per risk tier (app.core.dsfs_catalog):
+        high     -> 90th percentile (stricter: finance, programme-wide, audit roles)
+        standard -> 95th percentile (default; also stored as "threshold")
+        low      -> 97th percentile (looser: read-only access to own records)
+    The role-tiered strategy was benchmarked in scripts/model_experiments.py.
 
 After training, restart the backend so it reloads the new artifacts.
 """
@@ -46,13 +48,14 @@ from sqlalchemy import and_, or_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # allow `app.*` imports
 
 from app.core.config import settings
+from app.core.dsfs_catalog import TIER_PERCENTILES
 from app.db.database import SessionLocal
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
 from app.models.anomaly import AnomalyAlert
 from app.models.session import UserSession
 
 MIN_SESSIONS_TO_TRAIN = 30  # sanity floor; below this, z-scores are meaningless
-ANOMALY_PERCENTILE = 95     # top 5% of scores flagged as anomalous
+ANOMALY_PERCENTILE = TIER_PERCENTILES["standard"]  # default: top 5% of scores flagged
 
 
 def load_training_table(db) -> tuple[list[int], np.ndarray, int]:
@@ -119,11 +122,15 @@ def main():
     scores = -model.score_samples(X_scaled)
     threshold = float(np.percentile(scores, ANOMALY_PERCENTILE))
     flagged = int((scores >= threshold).sum())
+    tier_thresholds = {tier: float(np.percentile(scores, pct)) for tier, pct in TIER_PERCENTILES.items()}
 
     print(f"Training score distribution: min={scores.min():.4f} "
           f"mean={scores.mean():.4f} max={scores.max():.4f}")
     print(f"Threshold @ p{ANOMALY_PERCENTILE}: {threshold:.4f} "
           f"-> {flagged}/{n} training sessions flagged")
+    for tier, pct in TIER_PERCENTILES.items():
+        t = tier_thresholds[tier]
+        print(f"  {tier:<8} tier @ p{pct}: {t:.4f} -> {int((scores >= t).sum())}/{n} flagged")
 
     model_path = Path(settings.ISOLATION_FOREST_MODEL_PATH)
     scaler_path = Path(settings.ISOLATION_FOREST_SCALER_PATH)
@@ -135,6 +142,8 @@ def main():
     threshold_path.write_text(json.dumps({
         "threshold": threshold,
         "percentile": ANOMALY_PERCENTILE,
+        "tier_thresholds": tier_thresholds,
+        "tier_percentiles": TIER_PERCENTILES,
         "trained_on_n_sessions": n,
         "feature_columns": FEATURE_COLUMNS,
     }, indent=2))

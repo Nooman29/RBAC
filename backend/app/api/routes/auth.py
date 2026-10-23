@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -15,6 +17,9 @@ from app.core.security import (
     decode_pending_token,
 )
 from app.core.rbac import get_current_user_and_session
+from app.core.constants import RESOURCES
+from app.core.dsfs_catalog import ACTIONS, risk_tier_for_roles
+from app.core.visibility import SCOPE_LABELS, effective_scope
 from app.services import session_service, biometric_service, otp_service
 from app.schemas.user import MyPermissionsOut, PermissionPair
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -60,6 +65,36 @@ class CompleteBiometricSetupRequest(BaseModel):
 
 class SkipBiometricSetupRequest(BaseModel):
     pending_token: str
+
+
+class ResourceAccess(BaseModel):
+    resource_name: str
+    actions: List[str]
+
+
+class MyAccessOut(BaseModel):
+    username: str
+    role_names: List[str]
+    scope: str
+    scope_label: str
+    school_id: Optional[str] = None
+    organization_id: Optional[str] = None
+    department: Optional[str] = None
+    risk_tier: str
+    dashboard_access: bool
+    resources: List[ResourceAccess]
+
+
+def _all_permission_pairs(user: User) -> list:
+    """Union of permissions over ALL the user's roles (not just the first one)."""
+    seen, pairs = set(), []
+    for role in user.roles:
+        for p in role.permissions:
+            key = (p.resource_name, p.action_type)
+            if key not in seen:
+                seen.add(key)
+                pairs.append(key)
+    return pairs
 
 
 def _issue_full_login(db: Session, request: Request, user: User) -> Token:
@@ -224,15 +259,43 @@ def get_me(current=Depends(get_current_user_and_session), db: Session = Depends(
 @router.get("/my-permissions", response_model=MyPermissionsOut)
 def get_my_permissions(current=Depends(get_current_user_and_session)):
     user, _ = current
-    role = user.roles[0] if user.roles else None
+    role_names = [r.role_name for r in user.roles]
     return MyPermissionsOut(
         username=user.username,
-        role_name=role.role_name if role else None,
+        role_name=", ".join(role_names) if role_names else None,
         department=user.department,
-        permissions=(
-            [PermissionPair(resource_name=p.resource_name, action_type=p.action_type) for p in role.permissions]
-            if role else []
-        ),
+        permissions=[PermissionPair(resource_name=r, action_type=a) for r, a in _all_permission_pairs(user)],
+    )
+
+
+@router.get("/my-access", response_model=MyAccessOut)
+def get_my_access(current=Depends(get_current_user_and_session)):
+    """What the signed-in user may do, per module, and at which scope. Feeds the My Access page."""
+    user, _ = current
+    pairs = _all_permission_pairs(user)
+
+    by_resource: dict = {}
+    for resource, action in pairs:
+        by_resource.setdefault(resource, set()).add(action)
+
+    order = {name: i for i, name in enumerate(RESOURCES)}
+    resources = [
+        ResourceAccess(resource_name=r, actions=[a for a in ACTIONS if a in acts] + sorted(acts - set(ACTIONS)))
+        for r, acts in sorted(by_resource.items(), key=lambda kv: order.get(kv[0], len(order)))
+    ]
+
+    scope = effective_scope(user)
+    return MyAccessOut(
+        username=user.username,
+        role_names=[r.role_name for r in user.roles],
+        scope=scope,
+        scope_label=SCOPE_LABELS.get(scope, scope),
+        school_id=user.school_id,
+        organization_id=user.organization_id,
+        department=user.department,
+        risk_tier=risk_tier_for_roles([r.role_name for r in user.roles]),
+        dashboard_access=("dashboard", "read") in set(pairs),
+        resources=resources,
     )
 
 
