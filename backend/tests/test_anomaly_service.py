@@ -27,6 +27,7 @@ def stub_artifacts(monkeypatch):
     notified = []
     monkeypatch.setattr(anomaly_service, "_scaler", _IdentityScaler())
     monkeypatch.setattr(anomaly_service, "_threshold", 0.6)
+    monkeypatch.setattr(anomaly_service, "_tier_thresholds", None)  # single threshold for every tier
     monkeypatch.setattr(anomaly_service, "_explainer", None)
     monkeypatch.setattr(anomaly_service.notification_service, "notify_admins_of_anomaly",
                         lambda db, alert: notified.append(alert.alert_id))
@@ -89,6 +90,7 @@ def test_score_above_threshold_creates_alert_and_notifies_admins(db, make_user, 
     assert alert.is_anomaly is True
     assert alert.anomaly_score == pytest.approx(0.9)
     assert alert.detection_reason == "ml_model"
+    assert alert.threshold_used == pytest.approx(0.6)
     assert notified == [alert.alert_id]
 
 
