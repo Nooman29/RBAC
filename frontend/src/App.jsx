@@ -21,6 +21,7 @@ import Integrations from "./pages/Integrations";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MyAccess from "./pages/MyAccess";
+import ModelManagement from "./pages/ModelManagement";
 import NotificationBell from "./components/NotificationBell";
 import PermissionDeniedBanner from "./components/PermissionDeniedBanner";
 import Sidebar, { Icon, buildNavGroups } from "./components/Sidebar";
@@ -43,7 +44,7 @@ function findCrumb(pathname, groups) {
 }
 
 function Layout({ children }) {
-  const { can, loaded } = usePermissions();
+  const { can, loaded, scope } = usePermissions();
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useIdleLogout();
@@ -52,7 +53,7 @@ function Layout({ children }) {
     setSidebarOpen(false);
   }, [pathname]);
 
-  const crumb = findCrumb(pathname, buildNavGroups(can, loaded));
+  const crumb = findCrumb(pathname, buildNavGroups(can, loaded, scope));
 
   return (
     <div className="ds-shell">
@@ -130,6 +131,7 @@ function App() {
           <Route path="/detection-outcomes" element={<Wrapped><DetectionOutcomes /></Wrapped>} />
           <Route path="/simulate-attack" element={<Wrapped><SimulateAttack /></Wrapped>} />
           <Route path="/audit-log" element={<Wrapped><AuditLog /></Wrapped>} />
+          <Route path="/model" element={<Wrapped><ModelManagement /></Wrapped>} />
           <Route path="/integrations" element={<Wrapped><Integrations /></Wrapped>} />
           <Route path="/my-access" element={<Wrapped><MyAccess /></Wrapped>} />
           <Route path="/face-id-setup" element={<Wrapped><FaceEnroll /></Wrapped>} />

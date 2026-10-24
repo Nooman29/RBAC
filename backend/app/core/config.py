@@ -22,11 +22,20 @@ class Settings(BaseSettings):
     # Pending-auth token (short-lived, issued after password check, before 2nd factor)
     PENDING_TOKEN_EXPIRE_SECONDS: int = 300
 
-    # Isolation Forest anomaly detection — artifacts produced by
-    # scripts/train_isolation_forest.py, loaded by app/services/anomaly_service.py
+    # Isolation Forest anomaly detection — the LIVE model's artifacts, loaded by
+    # app/services/anomaly_service.py. Every trained version is kept next to them in
+    # versions/<version_id>/ and recorded in registry.json (model_registry_service).
     ISOLATION_FOREST_MODEL_PATH: str = "app/ml/models/isolation_forest.joblib"
     ISOLATION_FOREST_SCALER_PATH: str = "app/ml/models/scaler.joblib"
     ISOLATION_FOREST_THRESHOLD_PATH: str = "app/ml/models/threshold.json"
+
+    # Retraining schedule. The background check retrains when the newest version is
+    # older than MODEL_RETRAIN_INTERVAL_DAYS; a new version only goes live if it
+    # passes the guardrails. Set MODEL_AUTO_RETRAIN=false to retrain only by hand.
+    MODEL_AUTO_RETRAIN: bool = True
+    MODEL_RETRAIN_INTERVAL_DAYS: int = 7
+    MODEL_RETRAIN_CHECK_HOURS: int = 24
+    MODEL_RETRAIN_FIRST_CHECK_SECONDS: int = 600
 
     # Browser-facing base URL for account and alert email links.
     FRONTEND_URL: str = "http://127.0.0.1:5173"

@@ -10,6 +10,7 @@ export function PermissionsProvider({ children }) {
   const [username, setUsername] = useState(null);
   const [roleName, setRoleName] = useState(null);
   const [department, setDepartment] = useState(null);
+  const [scope, setScope] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -18,16 +19,21 @@ export function PermissionsProvider({ children }) {
       setUsername(null);
       setRoleName(null);
       setDepartment(null);
+      setScope(null);
       setLoaded(false);
       return;
     }
-    client
-      .get("/api/auth/my-permissions")
-      .then((res) => {
-        setPermissions(res.data.permissions || []);
-        setUsername(res.data.username);
-        setRoleName(res.data.role_name);
-        setDepartment(res.data.department);
+    Promise.all([
+      client.get("/api/auth/my-permissions"),
+      // Data scope (global / school / department / organization / own); optional.
+      client.get("/api/auth/my-access").catch(() => null),
+    ])
+      .then(([perms, access]) => {
+        setPermissions(perms.data.permissions || []);
+        setUsername(perms.data.username);
+        setRoleName(perms.data.role_name);
+        setDepartment(perms.data.department);
+        setScope(access ? access.data.scope : null);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
@@ -38,7 +44,7 @@ export function PermissionsProvider({ children }) {
   }
 
   return (
-    <PermissionsContext.Provider value={{ can, username, roleName, department, loaded }}>
+    <PermissionsContext.Provider value={{ can, username, roleName, department, scope, loaded }}>
       {children}
     </PermissionsContext.Provider>
   );

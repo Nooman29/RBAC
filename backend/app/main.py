@@ -7,7 +7,7 @@ from app.db.database import get_db, Base, engine
 from app.core.config import settings
 from app.core.rate_limit import limit_sensitive_auth
 from app import models
-from app.api.routes import users, roles, auth, dashboard, service_clients, module_events, audit
+from app.api.routes import users, roles, auth, dashboard, service_clients, module_events, audit, model
 from app.api.v1.app import v1_app
 from app.models import anomaly
 from app.models import guardian  # noqa: F401  (registers the guardian_links table)
@@ -16,6 +16,7 @@ from app.models import module_event  # noqa: F401  (registers module_events)
 from app.models import ui_event  # noqa: F401  (registers ui_events)
 from app.api.routes import notifications
 from app.db.migrations import apply_dsfs_pass1_schema
+from app.services import model_registry_service
 
 import logging
 
@@ -69,6 +70,7 @@ app.include_router(notifications.router)
 app.include_router(service_clients.router)
 app.include_router(module_events.router)
 app.include_router(audit.router)
+app.include_router(model.router)
 
 # Integration API for other DSFS modules (service-client credentials).
 # Mounted as a sub-app so it has its own docs (/api/v1/docs) and error format.
@@ -85,6 +87,7 @@ def health(db: Session = Depends(get_db)):
 def on_startup():
     Base.metadata.create_all(bind=engine)
     apply_dsfs_pass1_schema(engine)
+    model_registry_service.start_scheduler()
     logger = logging.getLogger(__name__)
     logger.info("Frontend (browser URL): %s", settings.FRONTEND_URL)
     logger.info("Allowed browser origins: %s", ", ".join(_cors_origins()))
