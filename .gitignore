@@ -36,3 +36,4 @@ Thumbs.db
 
 !backend/.env.docker.example
 !.env.example
+demo/.env
