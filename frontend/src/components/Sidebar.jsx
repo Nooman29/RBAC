@@ -71,6 +71,20 @@ const ICONS = {
       <line x1="15" y1="9" x2="15.01" y2="9" />
     </>
   ),
+  model: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="9" y="9" width="6" height="6" />
+      <line x1="9" y1="1" x2="9" y2="4" />
+      <line x1="15" y1="1" x2="15" y2="4" />
+      <line x1="9" y1="20" x2="9" y2="23" />
+      <line x1="15" y1="20" x2="15" y2="23" />
+      <line x1="20" y1="9" x2="23" y2="9" />
+      <line x1="20" y1="14" x2="23" y2="14" />
+      <line x1="1" y1="9" x2="4" y2="9" />
+      <line x1="1" y1="14" x2="4" y2="14" />
+    </>
+  ),
   access: (
     <>
       <circle cx="7.5" cy="15.5" r="4.5" />
@@ -115,8 +129,9 @@ export function Icon({ name, size = 18 }) {
 }
 
 // Single source of truth for navigation: used by the sidebar and the top-bar breadcrumb.
-export function buildNavGroups(can, loaded) {
+export function buildNavGroups(can, loaded, scope) {
   const allow = (resource, action) => Boolean(loaded && can && can(resource, action));
+  const isGlobal = scope === "global";
 
   const groups = [
     {
@@ -131,6 +146,7 @@ export function buildNavGroups(can, loaded) {
         { to: "/detection-outcomes", label: "Detection Outcomes", icon: "outcomes", show: allow("dashboard", "read") },
         { to: "/audit-log", label: "Audit Log", icon: "audit", show: allow("dashboard", "read") },
         { to: "/simulate-attack", label: "Simulate Attack", icon: "simulate", show: allow("dashboard", "write") },
+        { to: "/model", label: "Detection Model", icon: "model", show: allow("dashboard", "read") && isGlobal },
       ],
     },
     {
@@ -168,9 +184,9 @@ export function buildNavGroups(can, loaded) {
 
 export default function Sidebar({ open, onClose }) {
   const { logout } = useAuth();
-  const { can, username, roleName, department, loaded } = usePermissions();
+  const { can, username, roleName, department, scope, loaded } = usePermissions();
   const navigate = useNavigate();
-  const groups = buildNavGroups(can, loaded);
+  const groups = buildNavGroups(can, loaded, scope);
 
   async function handleLogout() {
     await logout();
