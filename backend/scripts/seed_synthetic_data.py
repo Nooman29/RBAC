@@ -10,6 +10,8 @@ real usage accumulates.
 What is generated:
   - Every user gets a routine: a typical start hour, activity level, session length and one or two
     stable IP addresses, so an unfamiliar address is genuinely rare, as it is for real users.
+  - Hours and weekdays are LOCAL business time (settings.BUSINESS_TIMEZONE, Africa/Nairobi by
+    default); sessions are stored in UTC like real logins, so a 09:00 start is saved as 06:00 UTC.
   - Normal sessions follow that routine on weekdays, touch the live system's resources (dashboard,
     user, role) and are mostly reads.
   - About 6% of sessions are "unusual": the routine plus a random mix of 1-3 unusual traits (night
@@ -34,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import or_
 
+from app.core.business_time import local_now, to_utc
 from app.core.constants import DEPARTMENTS
 from app.core.security import hash_password
 from app.db.database import SessionLocal
@@ -41,6 +44,7 @@ from app.models.anomaly import AnomalyAlert
 from app.models.notification import Notification
 from app.models.session import AccessLog, UserSession
 from app.models.user import User
+from app.services import live_detection_service
 
 RESOURCES = ["dashboard", "user", "role"]
 NORMAL_RESOURCE_WEIGHTS = [0.70, 0.20, 0.10]
@@ -63,8 +67,9 @@ TRAITS = ["night", "new_ip", "volume", "long", "destructive", "wide", "weekend"]
 # ---------------------------------------------------------------- generation
 
 def random_day(weekend: bool) -> datetime:
+    """A recent LOCAL calendar day (midnight), weekend or weekday as asked."""
     while True:
-        base = datetime.utcnow() - timedelta(days=random.randint(1, DAYS_BACK))
+        base = local_now() - timedelta(days=random.randint(1, DAYS_BACK))
         if (base.weekday() >= 5) == weekend:
             return base.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -129,9 +134,9 @@ def anomalous_params(profile: dict, used_unusual_ips: set) -> dict:
 
 
 def add_session(db, user_id: int, p: dict) -> UserSession:
-    login = random_day(p["weekend"]).replace(
+    login = to_utc(random_day(p["weekend"]).replace(
         hour=p["hour"], minute=random.randint(0, 59), second=random.randint(0, 59)
-    )
+    ))
     duration = max(60.0, float(p["duration"]))
     session = UserSession(
         user_id=user_id,
@@ -158,6 +163,7 @@ def add_session(db, user_id: int, p: dict) -> UserSession:
 def delete_sessions(db, session_ids) -> None:
     for i in range(0, len(session_ids), 500):
         chunk = session_ids[i:i + 500]
+        live_detection_service.delete_for_sessions(db, chunk)
         alert_ids = [a for (a,) in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(chunk)).all()]
         if alert_ids:
             db.query(Notification).filter(Notification.alert_id.in_(alert_ids)).delete(synchronize_session=False)

@@ -241,7 +241,10 @@ export default function AuditLog() {
                     <td>{r.username}</td>
                     <td>{r.department}</td>
                     <td><strong>{r.component}</strong></td>
-                    <td>{describeAction(r)}</td>
+                    <td>
+                      {describeAction(r)}
+                      {r.details && <div className="audit-details">{r.details}</div>}
+                    </td>
                     <td className="ds-mono">{r.endpoint || "—"}</td>
                     <td>{r.session_id ?? "—"}</td>
                     <td>

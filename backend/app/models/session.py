@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -23,6 +23,8 @@ class UserSession(Base):
 
 class AccessLog(Base):
     __tablename__ = "access_logs"
+    # Live detection counts a session's recent rows on every request.
+    __table_args__ = (Index("ix_access_logs_session_time", "session_id", "access_timestamp"),)
 
     log_id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.session_id"), nullable=False)
@@ -34,5 +36,8 @@ class AccessLog(Base):
     # add rows, so the anomaly features that count access_logs are unaffected.
     component = Column(String(60), nullable=True)
     endpoint = Column(String(200), nullable=True)
+    # What an administrative change did, in words (e.g. "Revoked write on user from Manager").
+    # A label on the same row, like component/endpoint, so it never changes what the model counts.
+    details = Column(String(300), nullable=True)
 
     session = relationship("UserSession", back_populates="access_logs")

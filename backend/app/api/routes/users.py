@@ -11,10 +11,11 @@ from app.core.security import hash_password
 from app.core.visibility import visibility_scope, apply_visibility, in_scope, out_of_scope_message
 from app.models.user import User
 from app.models.role import Role
-from app.core.rbac import require_permission
-from app.services import rbac_service
+from app.core.rbac import require_permission, get_current_user_and_session
+from app.services import rbac_service, live_detection_service
 from app.models.session import UserSession, AccessLog
 from app.models.anomaly import AnomalyAlert
+from app.models.live_alert import LiveAlert
 from app.models.notification import Notification
 from app.models.otp import OTPCode
 from app.models.biometric import BiometricEnrollment
@@ -92,6 +93,7 @@ def list_users(
 def get_user(
     user_id: int,
     current_user: User = Depends(require_permission("user", "read")),
+    current=Depends(get_current_user_and_session),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.user_id == user_id).first()
@@ -99,6 +101,10 @@ def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     scope = visibility_scope(current_user)
     if not in_scope(user, scope):
+        # Counted by live detection (R1) like any other refused request.
+        live_detection_service.on_denied(
+            db, current[1], "user", "read", endpoint=f"GET /api/users/{user_id}", reason="visibility"
+        )
         raise HTTPException(status_code=403, detail=out_of_scope_message("user", scope))
     return user
 
@@ -213,6 +219,7 @@ def delete_user(
         ]
 
         if session_ids:
+            live_detection_service.delete_for_sessions(db, session_ids)
             alert_ids = [
                 a.alert_id for a in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(session_ids)).all()
             ]
@@ -228,6 +235,9 @@ def delete_user(
         # If this user reviewed alerts belonging to OTHER users' sessions, don't leave a dangling FK
         db.query(AnomalyAlert).filter(AnomalyAlert.reviewed_by == user.user_id).update(
             {"reviewed_by": None}, synchronize_session=False
+        )
+        db.query(LiveAlert).filter(LiveAlert.resolved_by == user.user_id).update(
+            {"resolved_by": None}, synchronize_session=False
         )
 
         db.query(Notification).filter(Notification.user_id == user.user_id).delete(synchronize_session=False)

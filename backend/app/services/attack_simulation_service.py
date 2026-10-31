@@ -14,11 +14,12 @@ import random
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session as DBSession
 
+from app.core.business_time import local_now, to_utc
 from app.models.session import UserSession, AccessLog
 from app.models.user import User
 from app.models.anomaly import AnomalyAlert
 from app.models.notification import Notification
-from app.services import anomaly_service
+from app.services import anomaly_service, live_detection_service
 
 RESOURCES = ["dashboard", "role", "user"]
 ACTIONS = ["read", "write", "delete"]
@@ -113,7 +114,9 @@ def create_scenario_session(
     """
     Creates the simulated session and its access logs WITHOUT scoring it.
 
-    day: a date or datetime choosing the calendar day; by default a recent weekday.
+    day: a date or datetime choosing the LOCAL calendar day; by default a recent weekday.
+    Scenario hours are local business time (2 AM means 2 AM in Nairobi); the session is
+    stored in UTC like every other session.
     """
     if scenario_key not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario_key}")
@@ -123,7 +126,7 @@ def create_scenario_session(
     if user is None:
         raise ValueError("User not found")
 
-    now = datetime.utcnow()
+    now = local_now()
 
     # Small jitter so repeated runs are not robotically identical. Scenario hours are
     # chosen so the jitter never moves a login across the off-hours boundary.
@@ -134,9 +137,9 @@ def create_scenario_session(
     else:
         base_day = datetime(day.year, day.month, day.day)
 
-    login_time = base_day.replace(
+    login_time = to_utc(base_day.replace(
         hour=jittered_hour, minute=random.randint(0, 59), second=random.randint(0, 59), microsecond=0
-    )
+    ))
 
     duration_jitter = random.uniform(0.85, 1.15)
     duration_sec = int(cfg["duration_sec"] * duration_jitter)
@@ -215,6 +218,7 @@ def reset_simulated_data(db: DBSession, user_id: int) -> int:
     if not session_ids:
         return 0
 
+    live_detection_service.delete_for_sessions(db, session_ids)
     alert_ids = [
         a.alert_id
         for a in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(session_ids)).all()
@@ -242,6 +246,7 @@ def full_reset_user_history(db: DBSession, user_id: int) -> int:
     if not session_ids:
         return 0
 
+    live_detection_service.delete_for_sessions(db, session_ids)
     alert_ids = [
         a.alert_id
         for a in db.query(AnomalyAlert.alert_id).filter(AnomalyAlert.session_id.in_(session_ids)).all()

@@ -20,10 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.core.business_time import local_now, to_utc
 from app.core.security import create_access_token
 from app.db.database import SessionLocal
 from app.ml import feature_engineering
 from app.models.anomaly import AnomalyAlert
+from app.models.notification import Notification
 from app.models.role import Role
 from app.models.session import AccessLog, UserSession
 from app.models.user import User
@@ -72,7 +74,8 @@ def make_user(db, role=None):
 
 
 def add_session(db, user, days_ago, hour=10, duration=1800.0, ip="10.0.0.50", n_events=6, resource="dashboard"):
-    login = (datetime.utcnow() - timedelta(days=days_ago)).replace(hour=hour, minute=0, second=0, microsecond=0)
+    # hour is local business time
+    login = to_utc((local_now() - timedelta(days=days_ago)).replace(hour=hour, minute=0, second=0, microsecond=0))
     session = UserSession(
         user_id=user.user_id,
         login_time=login,
@@ -112,6 +115,11 @@ def cleanup(db):
     users = db.query(User).filter(User.username.like("verify4_%")).all()
     for user in users:
         attack_simulation_service.full_reset_user_history(db, user.user_id)
+    # The temporary admin can also be notified by the running backend about OTHER users'
+    # alerts (e.g. a stale session it auto-closes and scores), so remove those too.
+    user_ids = [user.user_id for user in users]
+    if user_ids:
+        db.query(Notification).filter(Notification.user_id.in_(user_ids)).delete(synchronize_session=False)
     for user in users:
         db.delete(user)
     db.commit()
@@ -188,7 +196,11 @@ def main():
             print("SKIP  end-to-end loop: no trained model found (run scripts.train_isolation_forest)")
         else:
             real_threshold = anomaly_service._threshold
-            anomaly_service._threshold = 99.0   # only the verdict rule can flag in this block
+            real_tiers = anomaly_service._tier_thresholds
+            # Only the verdict rule can flag in this block. Per-tier thresholds take priority
+            # over the single one when threshold.json has them, so both are overridden.
+            anomaly_service._threshold = 99.0
+            anomaly_service._tier_thresholds = None
             try:
                 admin = make_user(db, roles["Administrator"])
                 admin_session = session_service.create_session(db, user_id=admin.user_id, access_location="verify4")
@@ -239,6 +251,7 @@ def main():
                 check("loop: once cleared, the behaviour is no longer flagged", run3["is_anomaly"] is False, str(run3))
             finally:
                 anomaly_service._threshold = real_threshold
+                anomaly_service._tier_thresholds = real_tiers
     finally:
         cleanup(db)
         db.close()

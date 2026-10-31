@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class NotificationOut(BaseModel):
     notification_id: int
     alert_id: Optional[int]
+    live_alert_id: Optional[int] = None
     title: str
     body: Optional[str]
     is_read: bool

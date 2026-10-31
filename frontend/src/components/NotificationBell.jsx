@@ -89,7 +89,7 @@ export default function NotificationBell() {
           {notifications.map((n) => (
             <Link
               key={n.notification_id}
-              to={n.alert_id ? `/alerts/${n.alert_id}` : "/alerts"}
+              to={n.alert_id ? `/alerts/${n.alert_id}` : n.live_alert_id ? "/alerts#live" : "/alerts"}
               className={`notif-item ${n.is_read ? "" : "unread"}`}
               onClick={() => {
                 reportUi("opened_item");

@@ -57,3 +57,17 @@ def log_access(
     db.commit()
     db.refresh(log)
     return log
+
+
+def annotate_access(db: Session, request, details: str) -> None:
+    """
+    Adds a plain-language description to the audit row require_permission wrote for this request
+    (for example "Revoked write on user from Manager"). No-op when the request was not audited.
+    """
+    log_id = getattr(getattr(request, "state", None), "access_log_id", None) if request is not None else None
+    if log_id is None:
+        return
+    log = db.query(AccessLog).filter(AccessLog.log_id == log_id).first()
+    if log is not None:
+        log.details = details[:300]
+        db.commit()

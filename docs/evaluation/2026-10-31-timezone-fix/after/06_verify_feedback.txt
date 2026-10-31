@@ -1,0 +1,33 @@
+PASS  precedent: unflagged + confirmed threat -> confirmed_threat_pattern
+PASS  precedent: matches when the new session trips extra indicators
+PASS  precedent: does not match when an indicator is missing
+PASS  precedent: unflagged with no verdict is ignored
+PASS  precedent: unflagged + false_positive is ignored
+PASS  precedent: unflagged + authorized_exception is ignored
+PASS  precedent: flagged and still unreviewed -> repeat_pattern_override
+PASS  precedent: flagged + false_positive is cleared
+PASS  precedent: flagged + confirmed threat -> confirmed_threat_pattern
+PASS  precedent: a confirmed 'normal' pattern cannot be matched
+PASS  precedent: a normal-looking new session never matches
+PASS  precedent: another user's confirmed threat does not apply
+PASS  baseline: unflagged, no verdict -> counts
+PASS  baseline: unflagged but confirmed threat -> excluded
+PASS  baseline: unflagged + false_positive -> counts
+PASS  baseline: flagged, unreviewed -> excluded
+PASS  baseline: flagged + false_positive -> counts
+PASS  baseline: flagged + confirmed threat -> excluded
+PASS  loop: result carries no demo_mode
+PASS  loop: first run is not flagged (no precedent yet)
+PASS  loop: pattern signature recorded
+PASS  api: sessions include alert details
+PASS  api: detection outcomes expose missed_threat
+PASS  api: verdict can be set on an unflagged session
+PASS  api: missed_threat increases by one
+PASS  loop: same behaviour is flagged after the verdict
+PASS  loop: reason is confirmed_threat_pattern
+PASS  loop: another user is unaffected
+PASS  api: alert 1827 cleared as false positive
+PASS  api: alert 1829 cleared as false positive
+PASS  loop: once cleared, the behaviour is no longer flagged
+
+All checks passed.
