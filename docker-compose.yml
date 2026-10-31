@@ -22,9 +22,9 @@ services:
     env_file:
       - ./backend/.env.docker
     environment:
-      # Trust X-Forwarded-For from the proxy in front, so sessions record the real client address
-      # instead of the proxy container's. Only safe while the proxy is the only way in (see README).
-      FORWARDED_ALLOW_IPS: "*"
+      # One proxy (the frontend's nginx) appends the browser's address to X-Forwarded-For; the
+      # backend reads that last entry and ignores anything the browser wrote before it.
+      TRUSTED_PROXY_HOPS: "1"
     depends_on:
       db:
         condition: service_healthy

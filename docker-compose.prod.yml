@@ -22,9 +22,9 @@ services:
     env_file:
       - ./backend/.env.docker
     environment:
-      # Caddy sets X-Forwarded-For to the real visitor address (replacing anything a visitor sends),
-      # and nginx passes it on. Trusting it makes sessions record real client addresses.
-      FORWARDED_ALLOW_IPS: "*"
+      # Caddy sets X-Forwarded-For to the real visitor address (replacing anything a visitor sends)
+      # and nginx appends Caddy's address, so the visitor is the second entry from the end.
+      TRUSTED_PROXY_HOPS: "2"
     depends_on:
       db:
         condition: service_healthy

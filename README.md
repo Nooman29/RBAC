@@ -107,6 +107,7 @@ choosing Face ID or the email-code fallback.
 | `SMTP_USER`, `SMTP_PASSWORD` | required | Mail account (Gmail: use an App Password) |
 | `FRONTEND_URL` | http://127.0.0.1:5173 | The URL users open. Used in email links and CORS |
 | `CORS_EXTRA_ORIGINS` | empty | Other modules' frontends that call this API from a browser, comma-separated |
+| `TRUSTED_PROXY_HOPS` | 1 | Proxies in front of the backend; the client address is read this many entries from the end of `X-Forwarded-For`. Set in the compose files (1 locally, 2 in production), not here |
 | `OTP_EXPIRY_SECONDS`, `PENDING_TOKEN_EXPIRE_SECONDS` | 300 | One-time code and 2-step window |
 | `BIOMETRIC_MODEL`, `BIOMETRIC_DETECTOR`, `BIOMETRIC_DISTANCE_THRESHOLD` | Facenet512, retinaface, 0.30 | Face recognition settings |
 
@@ -214,7 +215,9 @@ docker compose exec backend python -m scripts.create_service_client --name "Paym
 ## Security checklist for a live deployment
 
 - Use a long random `SECRET_KEY` and `POSTGRES_PASSWORD`; never commit `.env` or `backend/.env.docker`
-- Keep the database and backend unpublished (the production file already does)
+- Keep the database and backend unpublished (the production file already does). Locally, port 8000 is
+  published for scripts and the demo module, and a request sent straight to it can forge its client address,
+  so do not expose it beyond your machine
 - Keep the firewall limited to ports 22, 80 and 443; prefer SSH keys over passwords
 - Give each module only the scopes it needs, and rotate a client secret if it leaks (Integrations page)
 - Use a mail account dedicated to this system, with an app password
