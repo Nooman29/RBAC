@@ -4,14 +4,15 @@ import client from "../api/client";
 import { usePermissions } from "../context/PermissionsContext";
 import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
-const RESOURCES = ["dashboard", "role", "user"];
-
 export default function RoleDetail() {
   const { roleId } = useParams();
   const { can } = usePermissions();
   const [role, setRole] = useState(null);
   const [error, setError] = useState("");
-  const [newPerm, setNewPerm] = useState({ resource_name: RESOURCES[0], action_type: "read" });
+  const [info, setInfo] = useState("");
+  const [catalog, setCatalog] = useState({ resources: [], actions: [] });
+  const [newPerm, setNewPerm] = useState({ resource_name: "", action_type: "" });
+  const [busyId, setBusyId] = useState(null);
 
   function load() {
     client
@@ -22,27 +23,49 @@ export default function RoleDetail() {
 
   useEffect(load, [roleId]);
 
+  // The resources and actions a permission can name, from the backend's catalog.
+  useEffect(() => {
+    client
+      .get("/api/roles/catalog")
+      .then((res) => {
+        setCatalog(res.data);
+        setNewPerm({ resource_name: res.data.resources[0] || "", action_type: res.data.actions[0] || "" });
+      })
+      .catch(() => {});
+  }, []);
+
   async function handleGrant(e) {
     e.preventDefault();
     setError("");
+    setInfo("");
     try {
       await client.post(`/api/roles/${roleId}/permissions`, null, {
         params: { resource_name: newPerm.resource_name, action_type: newPerm.action_type },
       });
-      setNewPerm({ resource_name: RESOURCES[0], action_type: "read" });
+      setInfo(`Granted ${newPerm.action_type} on ${newPerm.resource_name}.`);
       load();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to grant permission");
     }
   }
 
-  async function handleRevoke(permissionId) {
+  async function handleRevoke(p) {
+    const ok = window.confirm(
+      `Revoke ${p.action_type} on ${p.resource_name} from ${role.role_name}?\n\n` +
+        "Users with this role lose it on their next request."
+    );
+    if (!ok) return;
     setError("");
+    setInfo("");
+    setBusyId(p.permission_id);
     try {
-      await client.delete(`/api/roles/${roleId}/permissions/${permissionId}`);
+      await client.delete(`/api/roles/${roleId}/permissions/${p.permission_id}`);
+      setInfo(`Revoked ${p.action_type} on ${p.resource_name}.`);
       load();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to revoke permission");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -54,37 +77,44 @@ export default function RoleDetail() {
   return (
     <div>
       <Link to="/roles">&larr; Back to roles</Link>
-      <h2>{role.role_name}</h2>
-      <p className="muted">{role.description}</p>
+      <h2 className="wrap-anywhere">{role.role_name}</h2>
+      <p className="muted wrap-anywhere">{role.description}</p>
 
       {error && <p className="error">{error}</p>}
+      {info && <p className="info">{info}</p>}
       <ViewOnlyNotice resource="role" label="this role's permissions" />
 
       <h3>Permissions</h3>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Resource</th>
-            <th>Action</th>
-            {canWrite && <th></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {role.permissions.map((p) => (
-            <tr key={p.permission_id}>
-              <td>{p.resource_name}</td>
-              <td>{p.action_type}</td>
-              {canWrite && (
-                <td>
-                  <button className="link-btn" onClick={() => handleRevoke(p.permission_id)}>
-                    Revoke
-                  </button>
-                </td>
-              )}
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Action</th>
+              {canWrite && <th>Remove</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {role.permissions.map((p) => (
+              <tr key={p.permission_id}>
+                <td>{p.resource_name}</td>
+                <td>{p.action_type}</td>
+                {canWrite && (
+                  <td>
+                    <button
+                      className="danger-btn"
+                      onClick={() => handleRevoke(p)}
+                      disabled={busyId === p.permission_id}
+                    >
+                      {busyId === p.permission_id ? "Revoking…" : "Revoke"}
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {role.permissions.length === 0 && (
         <p className="muted">No permissions granted — this role has no administrative access.</p>
       )}
@@ -97,7 +127,7 @@ export default function RoleDetail() {
               value={newPerm.resource_name}
               onChange={(e) => setNewPerm({ ...newPerm, resource_name: e.target.value })}
             >
-              {RESOURCES.map((r) => (
+              {catalog.resources.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
@@ -105,11 +135,11 @@ export default function RoleDetail() {
               value={newPerm.action_type}
               onChange={(e) => setNewPerm({ ...newPerm, action_type: e.target.value })}
             >
-              <option value="read">read</option>
-              <option value="write">write</option>
-              <option value="delete">delete</option>
+              {catalog.actions.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
             </select>
-            <button type="submit">Grant</button>
+            <button type="submit" disabled={!newPerm.resource_name || !newPerm.action_type}>Grant</button>
           </form>
         </div>
       )}
