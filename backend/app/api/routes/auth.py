@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -10,7 +11,14 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.session import UserSession
 from app.core.rate_limit import client_ip
-from app.schemas.user import Token, UserOut
+from app.schemas.user import (
+    ForgotPasswordRequest,
+    MyPermissionsOut,
+    PermissionPair,
+    ResetPasswordRequest,
+    Token,
+    UserOut,
+)
 from app.core.security import (
     verify_password,
     hash_password,
@@ -22,14 +30,9 @@ from app.core.rbac import get_current_user_and_session
 from app.core.constants import RESOURCES
 from app.core.dsfs_catalog import ACTIONS, risk_tier_for_roles
 from app.core.visibility import SCOPE_LABELS, effective_scope
-from app.services import session_service, biometric_service, otp_service
-from app.schemas.user import MyPermissionsOut, PermissionPair
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+from app.services import biometric_service, otp_service, password_reset_service, session_service
 
-import secrets
-from datetime import timedelta
-from app.schemas.user import ForgotPasswordRequest, ResetPasswordRequest
-from app.services import password_reset_service
+router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 class PendingTokenResponse(BaseModel):

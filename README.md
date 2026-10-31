@@ -72,19 +72,20 @@ Optional but recommended, to enable anomaly detection (scoring stays off until a
 ```bash
 docker compose exec backend python -m scripts.seed_synthetic_data --create-users 8 --synthetic-users-only
 docker compose exec backend python -m scripts.train_isolation_forest
+docker compose exec backend python -m scripts.score_existing_sessions   # optional: score the seeded sessions so the dashboard has alerts
 docker compose restart backend
 ```
 
 Each script has `--help`. The first model is trained on synthetic sessions and can be retrained later.
 
-Open http://localhost:5173 and sign in as the administrator. The first login walks you through
+Open http://127.0.0.1:5173 and sign in as the administrator. The first login walks you through
 choosing Face ID or the email-code fallback.
 
 | URL | What |
 |---|---|
-| http://localhost:5173 | Dashboard |
-| http://localhost:8000/docs | Backend API docs (dashboard routes) |
-| http://localhost:8000/api/v1/docs | Integration API docs (for other modules) |
+| http://127.0.0.1:5173 | Dashboard |
+| http://127.0.0.1:8000/docs | Backend API docs (dashboard routes) |
+| http://127.0.0.1:8000/api/v1/docs | Integration API docs (for other modules) |
 
 ## Configuration
 
@@ -180,7 +181,7 @@ For a quick demo without a server, run the local stack and expose it with a tunn
 example Cloudflare's:
 
 ```bash
-cloudflared tunnel --url http://localhost:5173
+cloudflared tunnel --url http://127.0.0.1:5173
 ```
 
 It prints a public `https://...` address. Set `FRONTEND_URL` in `backend/.env.docker` to that address, run
@@ -226,15 +227,34 @@ docker compose exec backend python -m scripts.create_service_client --name "Paym
 
 ## Testing
 
-With the stack running:
+Unit tests run on an in-memory SQLite database (CI runs them on every pull request, with the frontend lint and
+build). pytest is not part of the runtime image, so install it after each rebuild:
 
 ```bash
-docker compose exec backend python -m scripts.verify_pass1    # roles, scopes, access decisions
-docker compose exec backend python -m scripts.verify_pass2    # integration API
-docker compose exec backend python -m scripts.verify_events   # events ingestion
+docker compose exec backend pip install pytest httpx
+docker compose exec backend pytest -q
+```
+
+End-to-end checks against the running stack:
+
+```bash
+docker compose exec backend python -m scripts.verify_pass1     # roles, scopes, access decisions
+docker compose exec backend python -m scripts.verify_pass2     # integration API
+docker compose exec backend python -m scripts.verify_events    # events ingestion
+docker compose exec backend python -m scripts.verify_audit     # component-level audit log
+docker compose exec backend python -m scripts.verify_feedback  # administrator verdicts feeding detection
 ```
 
 Each prints PASS or FAIL per check and exits non-zero on failure. They create temporary data and remove it.
+
+Evaluation of the anomaly detector (results are kept in `docs/evaluation/`):
+
+```bash
+docker compose exec backend python -m scripts.model_experiments            # model comparison and tuning (isolated database)
+docker compose exec backend python -m scripts.evaluate_realistic           # realistic attack rates and subtle insiders (isolated database)
+docker compose exec backend python -m scripts.evaluate_retrain_stability   # threshold over weekly retrains (isolated database)
+docker compose exec backend python -m scripts.evaluate_real_sessions       # false alarms on real sessions (read only)
+```
 `verify_pass2` fills the forgot-password rate limit; wait a minute (or restart the backend) before re-running.
 
 ## Troubleshooting
@@ -243,7 +263,7 @@ Each prints PASS or FAIL per check and exits non-zero on failure. They create te
 |---|---|
 | Backend restarts in a loop | `docker compose logs backend`. Usually a missing value in `backend/.env.docker` or an unreachable database |
 | Logs say `password authentication failed` | The password in `DATABASE_URL` (`backend/.env.docker`) differs from `POSTGRES_PASSWORD` (`.env`). If you changed `POSTGRES_PASSWORD` after the first start, the database volume still has the old one: either set it back, or reset with `docker compose down -v` (deletes all data) |
-| Camera does not open / Face ID missing | The site is on plain HTTP. Use HTTPS (or localhost) |
+| Camera does not open / Face ID missing | The site is on plain HTTP. Use HTTPS (or http://127.0.0.1 on the same computer) |
 | No emails or codes arrive | Check `SMTP_*`. Gmail needs an App Password |
 | `Too many attempts` at login | Rate limit (about 20 sign-ins per minute per address); wait a minute |
 | Caddy shows no certificate | DNS A record not pointing at the server yet, or ports 80/443 blocked |
