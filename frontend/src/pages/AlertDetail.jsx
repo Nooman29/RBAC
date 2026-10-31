@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
-import { describeDetection, describeSignature } from "../utils/detection";
+import { describeDetection, describeSignature, describeLiveRule, SEVERITY_BADGES } from "../utils/detection";
 import { usePermissions } from "../context/PermissionsContext";
 import ViewOnlyNotice from "../components/ViewOnlyNotice";
 
 const FEATURE_META = {
-  login_hour: { label: "Login hour", describe: (raw) => `Logged in at ${Math.round(raw)}:00.` },
+  login_hour: { label: "Login hour (local time)", describe: (raw) => `Logged in at ${Math.round(raw)}:00 local time (Nairobi).` },
   is_offhours: { label: "Off-hours login", describe: (raw) => (raw ? "Logged in outside normal business hours (before 7am or after 7pm)." : "Logged in during normal business hours.") },
   is_weekend: { label: "Weekend login", describe: (raw) => (raw ? "Logged in on a weekend." : "Logged in on a weekday.") },
   session_duration_sec: { label: "Session duration", describe: (raw) => `Session lasted about ${Math.round(raw)} seconds.` },
@@ -190,6 +190,57 @@ export default function AlertDetail() {
         )}
       </div>
       {terminateMsg && <p className="info">{terminateMsg}</p>}
+
+      {(alert.live_score || alert.live_alerts.length > 0) && (
+        <>
+          <h3>Live detection during this session</h3>
+          <p className="muted">
+            Early warnings raised while the session was still active. The anomaly score above, taken when
+            the session ended, is the official verdict.
+          </p>
+          {alert.live_score && (
+            <div className="detail-grid">
+              <div className={alert.live_score.flagged ? "score-flagged" : "score-normal"}>
+                <strong>Provisional model score:</strong> {alert.live_score.anomaly_score.toFixed(4)}
+                {alert.live_score.flagged ? " ⚠️ Above threshold" : ""}
+              </div>
+              <div><strong>Highest provisional score:</strong> {alert.live_score.peak_score.toFixed(4)}</div>
+              <div><strong>Final score (official):</strong> {alert.anomaly_score.toFixed(4)}</div>
+              <div><strong>Threshold:</strong> {alert.live_score.threshold_used.toFixed(4)} ({TIER_LABELS[alert.live_score.risk_tier] || alert.live_score.risk_tier})</div>
+              <div>
+                <strong>Last scored:</strong> after {alert.live_score.n_events} action(s),{" "}
+                {Math.round(alert.live_score.elapsed_sec / 60)} min into the session
+              </div>
+            </div>
+          )}
+          {alert.live_alerts.length > 0 && (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Rule</th>
+                  <th>Severity</th>
+                  <th>What happened</th>
+                  <th>Hits</th>
+                  <th>First seen</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alert.live_alerts.map((a) => (
+                  <tr key={a.live_alert_id}>
+                    <td>{describeLiveRule(a.rule)}</td>
+                    <td><span className={SEVERITY_BADGES[a.severity] || "badge"}>{a.severity}</span></td>
+                    <td>{a.summary}</td>
+                    <td>{a.hit_count}</td>
+                    <td>{parseUtc(a.first_seen_at).toLocaleString()}</td>
+                    <td>{a.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
 
       {alert.shap_contributions.length > 0 && (
         <>

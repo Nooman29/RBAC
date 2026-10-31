@@ -31,6 +31,42 @@ class AnomalyAlertSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LiveAlertOut(BaseModel):
+    """An early warning raised while the session was active (live detection)."""
+    live_alert_id: int
+    session_id: int
+    user_id: int
+    username: str
+    department: Optional[str] = None
+    rule: str
+    severity: str
+    status: str                       # open | dismissed | terminated
+    summary: str
+    hit_count: int
+    is_learning: Optional[bool] = None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    evidence: List[Dict[str, Any]] = []
+    session_active: bool
+    session_terminated: bool
+    resolved_by: Optional[int] = None
+    resolved_at: Optional[datetime] = None
+
+
+class LiveScoreOut(BaseModel):
+    """The latest provisional model score of the session while it was active."""
+    scored_at: datetime
+    anomaly_score: float
+    peak_score: float
+    threshold_used: float
+    risk_tier: str
+    is_learning: bool
+    n_events: int
+    elapsed_sec: float
+    flagged: bool
+    shap_contributions: List[ShapContribution] = []
+
+
 class AnomalyAlertDetail(AnomalyAlertSummary):
     reviewed_by: Optional[int] = None
     notes: Optional[str] = None
@@ -48,6 +84,9 @@ class AnomalyAlertDetail(AnomalyAlertSummary):
     risk_tier: Optional[str] = None
     is_learning: Optional[bool] = None
     prior_sessions: Optional[int] = None
+    # Live detection while the session was active (early warnings, not the verdict)
+    live_alerts: List[LiveAlertOut] = []
+    live_score: Optional[LiveScoreOut] = None
 
 
 class AlertReviewUpdate(BaseModel):
@@ -73,6 +112,8 @@ class SessionOut(BaseModel):
     is_anomaly: Optional[bool] = None
     anomaly_score: Optional[float] = None
     review_verdict: Optional[str] = None
+    # Rules of the session's open live alerts (empty when there are none)
+    live_rules: List[str] = []
 
 
 class TerminateSessionResult(BaseModel):

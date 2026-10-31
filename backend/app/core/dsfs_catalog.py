@@ -75,6 +75,25 @@ def risk_tier_for_roles(role_names) -> str:
     return min(tiers, key=RISK_TIERS.index)
 
 
+# Live (mid-session) detection limits, see app/services/live_detection_service.py.
+# These checks raise early warnings while a session is still active; the end-of-session
+# Isolation Forest score stays the official verdict.
+LIVE_DETECTION = {
+    # R1 out_of_scope: denied requests (missing permission or record outside the user's scope)
+    "denied_attempts": 3,
+    "denied_window_sec": 600,
+    # R2 destructive_burst: deletes + exports inside the window; stricter for high-risk roles
+    "burst_window_sec": 120,
+    "burst_count": {"high": 3, "standard": 5, "low": 5},
+    # R3 unusual_hour: hours within this margin of the user's earlier active hours are usual
+    "unusual_hour_margin": 1,
+    # R5 model_provisional: warm-up (either condition) and throttle per session
+    "model_min_events": 10,
+    "model_min_elapsed_sec": 300,
+    "model_interval_sec": 60,
+}
+
+
 DSFS_ROLE_DESCRIPTIONS = {
     "Programme Administrator": "Oversees the feeding programme across all schools: monitoring, fraud review and reporting.",
     "School Administrator": "Manages beneficiaries, attendance and notifications for one school.",
@@ -166,6 +185,7 @@ def validate_catalog() -> None:
         assert tier in RISK_TIERS, f"{role}: unknown risk tier '{tier}'"
         assert role in ROLE_SCOPES, f"{role}: has a risk tier but no scope"
     assert set(TIER_PERCENTILES) == set(RISK_TIERS), "Every risk tier needs a percentile"
+    assert set(LIVE_DETECTION["burst_count"]) == set(RISK_TIERS), "Every risk tier needs a burst limit"
 
     assert set(DSFS_ROLE_POLICIES) == set(DSFS_ROLE_DESCRIPTIONS), \
         "Every DSFS role needs both a policy and a description"

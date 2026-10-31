@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.core.business_time import local_now, to_utc
 from app.db.database import SessionLocal
 from app.models.session import UserSession, AccessLog
 from app.models.user import User
@@ -28,7 +29,7 @@ try:
         print("No users found.")
         sys.exit(1)
 
-    login_time = datetime.utcnow().replace(hour=3, minute=0, second=0, microsecond=0)
+    login_time = to_utc(local_now().replace(hour=3, minute=0, second=0, microsecond=0))   # 3 AM local
     duration = 4200  # 70 minutes, long
     session = UserSession(
         user_id=user.user_id,
