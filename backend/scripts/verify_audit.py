@@ -25,7 +25,7 @@ from app.models.role import Role
 from app.models.session import AccessLog, UserSession
 from app.models.ui_event import UiEvent
 from app.models.user import User
-from app.services import session_service
+from app.services import live_detection_service, session_service
 
 BASE = os.getenv("VERIFY_BASE_URL", "http://127.0.0.1:8000")
 failures = []
@@ -61,6 +61,7 @@ def cleanup(db):
     for user in db.query(User).filter(User.username.like("verify5_%")).all():
         session_ids = [s.session_id for s in db.query(UserSession.session_id).filter(UserSession.user_id == user.user_id).all()]
         if session_ids:
+            live_detection_service.delete_for_sessions(db, session_ids)   # live alerts reference sessions
             db.query(AccessLog).filter(AccessLog.session_id.in_(session_ids)).delete(synchronize_session=False)
             db.query(UserSession).filter(UserSession.session_id.in_(session_ids)).delete(synchronize_session=False)
         db.commit()

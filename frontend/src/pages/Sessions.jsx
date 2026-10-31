@@ -4,6 +4,7 @@ import client from "../api/client";
 import { parseUtc } from "../utils/date";
 import { usePermissions } from "../context/PermissionsContext";
 import ViewOnlyNotice from "../components/ViewOnlyNotice";
+import { describeLiveRule } from "../utils/detection";
 
 const VERDICT_LABELS = {
   confirmed_threat: "Confirmed threat",
@@ -110,7 +111,14 @@ export default function Sessions() {
               </td>
               <td>{parseUtc(s.login_time).toLocaleString()}</td>
               <td>{s.access_location || "unknown"}</td>
-              <td>{statusLabel(s)}</td>
+              <td>
+                {statusLabel(s)}
+                {s.live_rules && s.live_rules.length > 0 && (
+                  <Link to="/alerts#live" className="badge badge-danger" style={{ marginLeft: 6 }}>
+                    Live alert: {s.live_rules.map(describeLiveRule).join(", ")}
+                  </Link>
+                )}
+              </td>
               {showAll && (
                 <td>
                   {s.anomaly_score !== null && s.anomaly_score !== undefined

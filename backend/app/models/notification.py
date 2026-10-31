@@ -11,6 +11,7 @@ class Notification(Base):
     notification_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
     alert_id = Column(Integer, ForeignKey("anomaly_alerts.alert_id"), nullable=True)
+    live_alert_id = Column(Integer, ForeignKey("live_alerts.id"), nullable=True)  # mid-session warning
     title = Column(String(200), nullable=False)
     body = Column(Text, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)

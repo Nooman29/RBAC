@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import client from "../api/client";
 import { parseUtc } from "../utils/date";
 import { describeDetection } from "../utils/detection";
+import LiveAlertsPanel from "../components/LiveAlertsPanel";
 
 const VERDICT_LABELS = {
   confirmed_threat: "Confirmed threat",
@@ -30,6 +31,8 @@ export default function Alerts() {
   return (
     <div>
       <h2>Anomaly Alerts</h2>
+      <LiveAlertsPanel />
+      <h3>Scored sessions</h3>
       <div className="filter-bar">
         <label>
           <input
