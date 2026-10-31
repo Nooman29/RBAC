@@ -27,5 +27,9 @@ Each folder is one evaluation run with its raw outputs, a written summary and im
 | `2026-10-31-live-detection/screenshots/04_alert_detail_provisional_vs_final.png` | Provisional vs official score after termination |
 | `2026-10-31-live-detection/screenshots/05_live_rules_summary.png` | Table of what each rule caught |
 | `2026-10-31-pipeline-fixes/figures/01_retrain_stability.png` | Threshold and false alarms over 8 weekly retrains, previous vs current training rule |
+| `2026-10-31-pipeline-fixes/figures/02_detection_pipeline.png` | The whole detection pipeline: live rules, end-of-session scoring, feedback and retraining |
+| `2026-10-31-pipeline-fixes/screenshots/01_model_page_live_version_thresholds_drift.png` | Detection Model page: live version, training size, threshold, drift |
+| `2026-10-31-pipeline-fixes/screenshots/02_model_versions_live_guardrails.png` | Version history with the live version's four guardrails |
+| `2026-10-31-pipeline-fixes/screenshots/03_model_page_full.png` | The whole Detection Model page |
 
 The live demo script for the presentation is in `docs/LIVE_DETECTION_DEMO.md`.
