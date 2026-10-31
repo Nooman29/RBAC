@@ -76,7 +76,7 @@ export default function RoleDetail() {
 
   return (
     <div>
-      <Link to="/roles">&larr; Back to roles</Link>
+      <Link to="/roles" className="ds-btn ds-btn-sm ds-back">&larr; Back to roles</Link>
       <h2 className="wrap-anywhere">{role.role_name}</h2>
       <p className="muted wrap-anywhere">{role.description}</p>
 
@@ -102,7 +102,7 @@ export default function RoleDetail() {
                 {canWrite && (
                   <td>
                     <button
-                      className="danger-btn"
+                      className="ds-btn ds-btn-sm ds-btn-danger"
                       onClick={() => handleRevoke(p)}
                       disabled={busyId === p.permission_id}
                     >
@@ -139,7 +139,7 @@ export default function RoleDetail() {
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
-            <button type="submit" disabled={!newPerm.resource_name || !newPerm.action_type}>Grant</button>
+            <button type="submit" className="ds-btn ds-btn-primary" disabled={!newPerm.resource_name || !newPerm.action_type}>Grant</button>
           </form>
         </div>
       )}

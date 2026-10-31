@@ -152,16 +152,16 @@ export default function SimulateAttack() {
               </option>
             ))}
           </select>
-          <button onClick={handleRun} disabled={!selectedUser || !selectedScenario || running}>
+          <button className="ds-btn ds-btn-primary" onClick={handleRun} disabled={!selectedUser || !selectedScenario || running}>
             {running ? "Running…" : "Run Scenario"}
           </button>
         </div>
 
         <div className="reset-row">
-          <button onClick={handleReset} disabled={!selectedUser || resetting} className="secondary reset-btn">
+          <button onClick={handleReset} disabled={!selectedUser || resetting} className="ds-btn reset-btn">
             {resetting ? "Clearing…" : "Clear simulated history"}
           </button>
-          <button onClick={handleFullReset} disabled={!selectedUser || fullResetting} className="danger reset-btn">
+          <button onClick={handleFullReset} disabled={!selectedUser || fullResetting} className="ds-btn ds-btn-danger reset-btn">
             {fullResetting ? "Wiping…" : "Full reset (wipe ALL history)"}
           </button>
           <span className="muted reset-hint">
@@ -204,7 +204,7 @@ export default function SimulateAttack() {
           )}
           {signatureText && <p className="muted">Behavior recorded: {signatureText}.</p>}
           {result.alert_id && (
-            <Link to={`/alerts/${result.alert_id}`}>View full alert & SHAP explanation &rarr;</Link>
+            <Link to={`/alerts/${result.alert_id}`} className="ds-btn ds-btn-sm">View full alert & SHAP explanation &rarr;</Link>
           )}
 
           {!result.is_anomaly && result.alert_id && (
@@ -219,7 +219,7 @@ export default function SimulateAttack() {
                   Recorded as a confirmed threat. Run the same scenario again for this user — it will now be flagged.
                 </p>
               ) : (
-                <button onClick={handleMarkThreat} disabled={marking}>
+                <button className="ds-btn ds-btn-danger" onClick={handleMarkThreat} disabled={marking}>
                   {marking ? "Recording…" : "Mark as a real threat"}
                 </button>
               )}

@@ -86,32 +86,27 @@ body .auth-screen .auth-card button {
 }
 body .auth-screen .auth-card button:hover:not(:disabled) { background: #1d4ed8; }
 body .auth-screen .auth-card button:disabled { background: #9db4f0; cursor: not-allowed; }
-body .auth-screen .auth-card button.secondary {
+/* Secondary actions in the sign-in card (Resend code, Back to login, Use a different account):
+   the same outlined button whether it is a <button> or a link. */
+body .auth-screen .auth-card button.secondary,
+body .auth-screen .auth-card .auth-secondary {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid #d5dbe6;
+  border-radius: 10px;
   background: #fff;
   color: #2563eb;
-  border: 1px solid #d5dbe6;
-  margin-top: 0.5rem;
-}
-body .auth-screen .auth-card button.secondary:hover:not(:disabled) { background: #f5f8ff; }
-
-/* Text-style links and buttons */
-body .auth-screen .auth-card .auth-link,
-body .auth-screen .auth-card button.auth-link {
-  display: block;
-  width: auto;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  text-align: center;
-  background: none;
-  border: none;
-  color: #2563eb;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  cursor: pointer;
+  text-align: center;
   text-decoration: none;
+  cursor: pointer;
 }
-body .auth-screen .auth-card .auth-link:hover,
-body .auth-screen .auth-card button.auth-link:hover:not(:disabled) { background: none; text-decoration: underline; }
+body .auth-screen .auth-card button.secondary:hover:not(:disabled),
+body .auth-screen .auth-card .auth-secondary:hover { background: #f5f8ff; }
 
 /* Alerts */
 .auth-alert { margin: 0.4rem 0 0.6rem; padding: 0.65rem 0.8rem; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
