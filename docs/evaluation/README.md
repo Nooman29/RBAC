@@ -7,6 +7,7 @@ Each folder is one evaluation run with its raw outputs, a written summary and im
 | `2026-10-31-timezone-fix/` | Reading clock hours in Nairobi time instead of UTC: effect on real logins, and detection quality before vs after | `summary.md`, `figures/` |
 | `2026-10-31-live-detection/` | Live (mid-session) detection: each rule triggered on the running system, provisional vs final score | `results.md`, `screenshots/` |
 | `2026-10-31-pipeline-fixes/` | Training-set rule (threshold drift over weekly retrains), familiar addresses, stale-session duration | `summary.md`, `figures/` |
+| `2026-10-31-realistic-benchmark/` | Why F1 is 0.99 here and 0.24-0.28 on CERT: realistic attack rates, subtle insiders, false alarms on real sessions | `summary.md`, `figures/` |
 
 `2026-10-31-timezone-fix/results.html` shows every table in one page (open it in a browser).
 
@@ -31,5 +32,8 @@ Each folder is one evaluation run with its raw outputs, a written summary and im
 | `2026-10-31-pipeline-fixes/screenshots/01_model_page_live_version_thresholds_drift.png` | Detection Model page: live version, training size, threshold, drift |
 | `2026-10-31-pipeline-fixes/screenshots/02_model_versions_live_guardrails.png` | Version history with the live version's four guardrails |
 | `2026-10-31-pipeline-fixes/screenshots/03_model_page_full.png` | The whole Detection Model page |
+| `2026-10-31-realistic-benchmark/figures/01_prevalence.png` | F1 and PR-AUC as attacks become rarer (20% to CERT's 0.3%) |
+| `2026-10-31-realistic-benchmark/figures/02_attack_strength.png` | How much a routine-keeping insider must change to be caught; single traits |
+| `2026-10-31-realistic-benchmark/figures/03_real_vs_synthetic_false_alarms.png` | False alarms on synthetic vs real sessions, and their SHAP drivers |
 
 The live demo script for the presentation is in `docs/LIVE_DETECTION_DEMO.md`.
