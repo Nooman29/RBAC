@@ -1,0 +1,12 @@
+8 demo user(s): synth_01, synth_02, synth_03, synth_04, synth_05, synth_06, synth_07, synth_08
+Removed.
+Synthetic sessions found, by address range:
+  10.0.0.%         0
+  185.220.101.%    0
+  10.77.%          0
+  185.220.%        0
+  total            0
+Deleted 0 synthetic session(s).
+Created demo users: synth_01, synth_02, synth_03, synth_04, synth_05, synth_06, synth_07, synth_08
+Seeded 421 sessions for 8 user(s) (23 deliberately unusual).
+Next: python -m scripts.train_isolation_forest   (then restart the backend)
