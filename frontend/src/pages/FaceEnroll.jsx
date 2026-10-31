@@ -34,7 +34,7 @@ export default function FaceEnroll() {
         <FaceCapture onCapture={handleCapture} onCancel={() => {}} busy={busy} />
       )}
       {!capturing && (
-        <button onClick={() => { setCapturing(true); setStatus(""); }}>Re-enroll</button>
+        <button className="ds-btn ds-btn-primary" onClick={() => { setCapturing(true); setStatus(""); }}>Re-enroll</button>
       )}
     </div>
   );

@@ -174,7 +174,7 @@ export default function Users() {
                 <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
               ))}
             </select>
-            <button type="submit" disabled={creating}>
+            <button type="submit" className="ds-btn ds-btn-primary" disabled={creating}>
               {creating ? "Creating…" : "Create"}
             </button>
           </form>
@@ -226,7 +226,7 @@ export default function Users() {
                     ) : (
                       <>
                         <span className="status-pending">Setup pending</span>
-                        <button className="link-btn" onClick={() => handleResendSetup(u.user_id)}>
+                        <button className="ds-btn ds-btn-sm" onClick={() => handleResendSetup(u.user_id)}>
                           Resend email
                         </button>
                       </>
@@ -260,7 +260,7 @@ export default function Users() {
                     ) : lastAdmin ? (
                       <span className="muted">Protected</span>
                     ) : (
-                      <button className="link-btn danger" onClick={() => handleDeleteUser(u)}>
+                      <button className="ds-btn ds-btn-sm ds-btn-danger" onClick={() => handleDeleteUser(u)}>
                         Delete
                       </button>
                     )}

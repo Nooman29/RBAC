@@ -49,10 +49,10 @@ export default function FaceCapture({ onCapture, onCancel, busy }) {
       <video ref={videoRef} autoPlay playsInline muted className="face-video" />
       <canvas ref={canvasRef} style={{ display: "none" }} />
       <div className="face-capture-actions">
-        <button type="button" onClick={handleCapture} disabled={busy || !!cameraError}>
+        <button type="button" className="ds-btn ds-btn-primary" onClick={handleCapture} disabled={busy || !!cameraError}>
           {busy ? "Verifying…" : "Capture"}
         </button>
-        <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
+        <button type="button" className="ds-btn secondary" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>
