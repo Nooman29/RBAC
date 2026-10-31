@@ -63,3 +63,24 @@ different days than the morning run; in that test no user has a simulated or fla
 
 Retrain once from the Detection Model page (or `python -m scripts.train_isolation_forest`) so the live model is
 trained under the new rule. The 53 existing sessions with the made-up 1800 s duration are left as they are.
+
+## The live model after the fix
+
+Retrained on the running system on 31 October 2026 (screenshots in `screenshots/`, diagram in
+`figures/02_detection_pipeline.png`).
+
+| | Version 20261031-185148 (live, new rule) | Version 20261031-100622 (previous, old rule) |
+|---|---|---|
+| Training sessions | 587 (23 closed sessions left out: simulated attacks and known threats) | 577 |
+| Thresholds (high p90 / standard p95 / low p97) | 0.4816 / 0.5223 / 0.5726 | |
+| Guardrail 1, enough data | pass (minimum 30) | pass |
+| Guardrail 2, scores vary | pass | pass |
+| Guardrail 3, recent false alarms | pass: 8.5% of the 117 most recent sessions (limit 15%) | 3.5% |
+| Guardrail 4, known attacks | pass: 61% of 23, same as the live model | 61% |
+| Drift | not enough sessions scored since promotion yet | |
+
+Guardrail 3 rose from 3.5% to 8.5%. That is the fix working, not a regression: under the old rule the recent
+sessions the model had flagged were removed before the check, so it could not count them as false alarms. It now
+measures all recent sessions and is still well inside the 15% limit.
+
+The "By" column shows the username of whoever pressed Retrain; the first Administrator account is named `string`.
