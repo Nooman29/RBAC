@@ -54,6 +54,31 @@ MIN_STD = {                     # absolute floor per feature (in the feature's o
 }
 
 
+def counts_as_normal_behaviour():
+    """
+    SQL condition (on a query outer-joined to AnomalyAlert) for a session that may shape a user's
+    personal baseline: the z-score history, which addresses are familiar (new_ip) and which hours
+    are usual (live rule R3). A session counts only if:
+      - it was never scored, or
+      - it was scored normal AND an administrator has not confirmed it as a threat, or
+      - an administrator cleared it as a false positive or authorized exception.
+    A flagged session that is unreviewed, and ANY session confirmed as a threat (including one
+    the model let through), never counts, so an attack cannot teach a user's baseline that it is
+    normal. (The global model's training set uses a looser rule: model_registry_service.)
+    """
+    return or_(
+        AnomalyAlert.alert_id.is_(None),
+        and_(
+            AnomalyAlert.is_anomaly.is_(False),
+            or_(
+                AnomalyAlert.review_verdict.is_(None),
+                AnomalyAlert.review_verdict != "confirmed_threat",
+            ),
+        ),
+        AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
+    )
+
+
 def _offhours(hour: int) -> int:
     """hour is a LOCAL business-time hour (see app.core.business_time)."""
     return int(hour < 7 or hour > 19)
@@ -88,23 +113,30 @@ def build_raw_session_features(
     n_write = sum(1 for l in logs if l.action_performed == "write")
     n_delete = sum(1 for l in logs if l.action_performed == "delete")
 
-    prior_locations = {
-        loc
-        for (loc,) in db.query(UserSession.access_location)
+    earlier = (
+        db.query(UserSession.access_location)
+        .outerjoin(AnomalyAlert, AnomalyAlert.session_id == UserSession.session_id)
         .filter(
             UserSession.user_id == session.user_id,
             UserSession.session_id != session.session_id,
             UserSession.login_time < session.login_time,
         )
-        .all()
+    )
+    any_earlier_address = earlier.filter(UserSession.access_location.isnot(None)).first() is not None
+    # Familiar addresses come only from earlier sessions that count as normal behaviour, so an
+    # address used in a simulated attack, a confirmed threat or a flagged unreviewed session does
+    # not become "known" (otherwise an attacker's second visit from it would look familiar).
+    familiar = {
+        loc
+        for (loc,) in earlier.filter(UserSession.simulated_scenario.is_(None), counts_as_normal_behaviour()).all()
         if loc
     }
-    # An address can only be unfamiliar if the user has at least one earlier address on record:
-    # a first-ever login has nothing to be unfamiliar against.
+    # An address can only be unfamiliar if the user has at least one earlier address on record
+    # (any session counts for that): a first-ever login has nothing to be unfamiliar against.
     new_ip = int(
         bool(session.access_location)
-        and bool(prior_locations)
-        and session.access_location not in prior_locations
+        and any_earlier_address
+        and session.access_location not in familiar
     )
 
     if live_duration_sec is not None:
@@ -146,13 +178,8 @@ def build_user_history_stats(
     Simulated attack sessions never count toward a baseline (include_simulated
     is kept only for older callers and defaults to False).
 
-    A session counts toward "normal" behavior only if:
-      - it was never scored, or
-      - it was scored normal AND an administrator has not confirmed it as a threat, or
-      - an administrator cleared it as a false positive or authorized exception.
-    A flagged session that is unreviewed, and ANY session confirmed as a threat
-    (including one the model let through), never counts. This keeps an attack, however
-    it was discovered, from teaching the model to treat it as normal.
+    Only sessions that count as normal behaviour are used (counts_as_normal_behaviour), so an
+    attack, however it was discovered, never teaches the baseline to treat it as normal.
     """
     query = (
         db.query(UserSession)
@@ -169,19 +196,7 @@ def build_user_history_stats(
     if before is not None:
         query = query.filter(UserSession.login_time < before)
 
-    query = query.filter(
-        or_(
-            AnomalyAlert.alert_id.is_(None),
-            and_(
-                AnomalyAlert.is_anomaly.is_(False),
-                or_(
-                    AnomalyAlert.review_verdict.is_(None),
-                    AnomalyAlert.review_verdict != "confirmed_threat",
-                ),
-            ),
-            AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
-        )
-    )
+    query = query.filter(counts_as_normal_behaviour())
 
     other_sessions = query.all()
 
