@@ -1,8 +1,17 @@
 """Security review fixes: ended sessions, emailed codes, client address, first-time setup, password reset."""
+import sys
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
+
+# The auth routes import biometric_service, which loads OpenCV and DeepFace. CI installs the light
+# requirements-ci.txt without them, so stand in an empty module there. None of these tests use
+# Face ID; where OpenCV is installed (the Docker image) the real module is imported as usual.
+try:
+    import cv2  # noqa: F401
+except ImportError:
+    sys.modules.setdefault("app.services.biometric_service", ModuleType("app.services.biometric_service"))
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from starlette.requests import Request
