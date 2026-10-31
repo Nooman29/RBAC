@@ -36,10 +36,20 @@ def get_current_user_and_session(
         raise credentials_exception
 
     session = db.query(UserSession).filter(UserSession.session_id == int(session_id)).first()
-    if session is not None and session.terminated:
+    if session is None or session.user_id != user.user_id:
+        raise credentials_exception
+    if session.terminated:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session has been terminated by an administrator",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if session.logout_time is not None:
+        # Logged out (or closed as stale): the session was already scored, and live detection
+        # ignores closed sessions, so a token kept after logout must not keep working.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has ended. Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

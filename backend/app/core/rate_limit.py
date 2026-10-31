@@ -12,6 +12,8 @@ from typing import Deque, Dict, Tuple
 
 from fastapi import HTTPException, Request
 
+from app.core.config import settings
+
 # Per-minute limits for the existing browser-facing auth endpoints (per client IP).
 SENSITIVE_AUTH_LIMITS = {
     "/api/auth/login": 20,
@@ -62,14 +64,20 @@ limiter = SlidingWindowLimiter()
 
 def client_ip(request: Request) -> str:
     """
-    Best-effort caller IP. Behind the nginx proxy the TCP peer is the proxy, so
-    the first X-Forwarded-For entry is preferred when present. If port 8000 is
-    reachable directly, that header can be spoofed; in a real deployment only
-    the proxy should be exposed.
+    The caller's address, for rate limits and the session's access_location (a model feature).
+
+    Behind our proxies the TCP peer is the last proxy, so X-Forwarded-For is read, counting
+    settings.TRUSTED_PROXY_HOPS entries from the END: those are the ones our own proxies wrote.
+    The FIRST entry is whatever the client sent and must never be trusted. A request that reaches
+    port 8000 directly (local development only; production does not publish it) can still forge
+    the header.
     """
+    hops = settings.TRUSTED_PROXY_HOPS
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    if hops > 0 and forwarded:
+        entries = [e.strip() for e in forwarded.split(",") if e.strip()]
+        if entries:
+            return entries[-hops] if len(entries) >= hops else entries[0]
     return request.client.host if request.client else "unknown"
 
 

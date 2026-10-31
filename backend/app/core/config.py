@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # frontends of other DSFS modules: "http://localhost:3000,https://attendance.example.com"
     CORS_EXTRA_ORIGINS: str = ""
 
+    # Proxies we run in front of the backend. Each appends the address it received the request
+    # from to X-Forwarded-For, so the real client is this many entries from the END; entries
+    # before it were written by the client and can be forged. Local compose: 1 (nginx).
+    # Production: 2 (Caddy, then nginx). 0 ignores the header.
+    TRUSTED_PROXY_HOPS: int = 1
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

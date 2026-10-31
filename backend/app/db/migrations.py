@@ -43,6 +43,8 @@ _SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS ix_access_logs_session_time ON access_logs (session_id, access_timestamp)",
     # Audit detail for administrative changes (role grant/revoke/delete)
     "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS details VARCHAR(300)",
+    # Wrong guesses per emailed code (a code is burned after MAX_OTP_ATTEMPTS)
+    "ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0",
 ]
 
 

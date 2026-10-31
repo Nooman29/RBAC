@@ -11,4 +11,5 @@ class OTPCode(Base):
     code = Column(String(6), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False, nullable=False)
+    failed_attempts = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

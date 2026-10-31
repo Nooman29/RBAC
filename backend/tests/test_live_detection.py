@@ -513,7 +513,8 @@ def _admin_with_session(db, make_role, make_user):
 def test_terminate_resolves_live_alerts_and_ends_the_session(db, standard_user, make_role, make_user):
     admin, admin_session = _admin_with_session(db, make_role, make_user)
     s = _session(db, standard_user, login=datetime.utcnow() - timedelta(minutes=5))
-    live.on_module_events(db, s.session_id, [_module_event(db, s, "write", permitted=False)])
+    # A fixed business-hours clock, so R3 (unusual hour) cannot also fire when the suite runs at night
+    live.on_module_events(db, s.session_id, [_module_event(db, s, "write", permitted=False)], now=NOW)
 
     dashboard.terminate_session(s.session_id, current_user=admin, current=(admin, admin_session.session_id), db=db)
 
@@ -556,7 +557,7 @@ def test_live_alert_list_is_scoped_and_dismiss_checks_scope(db, standard_user, m
 def test_sessions_list_shows_open_live_rules(db, standard_user, make_role, make_user):
     admin, _ = _admin_with_session(db, make_role, make_user)
     s = _session(db, standard_user, login=datetime.utcnow())
-    live.on_module_events(db, s.session_id, [_module_event(db, s, "write", permitted=False)])
+    live.on_module_events(db, s.session_id, [_module_event(db, s, "write", permitted=False)], now=NOW)
 
     rows = dashboard.list_sessions(active_only=True, current_user=admin, db=db)
 
