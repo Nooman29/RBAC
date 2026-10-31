@@ -35,8 +35,13 @@ export function AuthProvider({ children }) {
       `/api/auth/verify-otp?code=${encodeURIComponent(code)}`,
       { pending_token: pendingToken }
     );
+    // Users who have not chosen Face ID yet go on to first-time setup once the code is verified
+    if (res.data.status === "first_time_setup_required") {
+      return { status: "first_time_setup_required", pendingToken: res.data.pending_token };
+    }
     setToken(res.data.access_token);
     localStorage.setItem("access_token", res.data.access_token);
+    return { status: "signed_in" };
   }
 
   async function verifyFace(pendingToken, imageBase64) {

@@ -130,7 +130,11 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      await verifyOtp(pendingToken, code);
+      const result = await verifyOtp(pendingToken, code);
+      if (result.status === "first_time_setup_required") {
+        navigate("/first-time-setup", { state: { pendingToken: result.pendingToken } });
+        return;
+      }
       navigate("/");
     } catch (err) {
       setError(err.response?.data?.detail || "Incorrect or expired code");

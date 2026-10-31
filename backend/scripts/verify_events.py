@@ -184,7 +184,12 @@ def main():
                   f"n_access_events={n}; available keys: {sorted(features)[:14]}")
         except Exception as exc:  # noqa: BLE001
             check("pipeline: events are counted in the session feature vector", False, repr(exc))
+        # Reopen it: the session was committed as closed above, and a closed session's token no
+        # longer works, but the Teacher's token is used again below.
         db.rollback()
+        t_session.logout_time = None
+        t_session.session_duration = None
+        db.commit()
 
         # ---- 2. Validation (rejected as a whole) -------------------------------
         def post(events_list, token=t_token, headers=writer_h):

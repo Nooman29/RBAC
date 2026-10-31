@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.models.user import User
+from app.models.session import UserSession
+from app.core.rate_limit import client_ip
 from app.schemas.user import Token, UserOut
 from app.core.security import (
     verify_password,
@@ -99,8 +101,7 @@ def _all_permission_pairs(user: User) -> list:
 
 def _issue_full_login(db: Session, request: Request, user: User) -> Token:
     """Shared final step: create session + issue real access token."""
-    client_host = request.client.host if request.client else "unknown"
-    session = session_service.create_session(db, user_id=user.user_id, access_location=client_host)
+    session = session_service.create_session(db, user_id=user.user_id, access_location=client_ip(request))
     token = create_access_token({"sub": str(user.user_id), "sid": session.session_id})
     return Token(access_token=token)
 
@@ -120,12 +121,9 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
     if not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    if not user.biometric_choice_made:
-        pending_token = create_pending_token(user.user_id, scope="first_time_setup")
-        return PendingTokenResponse(
-            status="first_time_setup_required", pending_token=pending_token, has_face_option=False
-        )
-
+    # A password alone never opens first-time setup (it could enrol someone else's face, or skip
+    # straight in). Users who have not chosen yet verify the emailed code first; verify-otp then
+    # sends them to setup. The setup-password link already proves the email, so it goes direct.
     pending_token = create_pending_token(user.user_id, scope="pending_2fa")
     return PendingTokenResponse(
         status="2fa_required", pending_token=pending_token, has_face_option=user.is_biometric_enrolled
@@ -222,8 +220,10 @@ def verify_face(payload: VerifyFaceRequest, request: Request, db: Session = Depe
     return _issue_full_login(db, request, user)
 
 
-@router.post("/verify-otp", response_model=Token)
+@router.post("/verify-otp")
 def verify_otp_route(payload: VerifyOtpRequest, request: Request, db: Session = Depends(get_db), code: str = ""):
+    """Returns an access token, or, for a user who has not chosen Face ID yet, a first-time
+    setup token (status "first_time_setup_required") now that the email is verified."""
     user_id_str = decode_pending_token(payload.pending_token)
     if user_id_str is None:
         raise HTTPException(status_code=401, detail="Invalid or expired pending token")
@@ -233,6 +233,12 @@ def verify_otp_route(payload: VerifyOtpRequest, request: Request, db: Session = 
         raise HTTPException(status_code=401, detail="Incorrect or expired OTP")
 
     user = db.query(User).filter(User.user_id == user_id).first()
+    if not user.biometric_choice_made:
+        return PendingTokenResponse(
+            status="first_time_setup_required",
+            pending_token=create_pending_token(user.user_id, scope="first_time_setup"),
+            has_face_option=False,
+        )
     return _issue_full_login(db, request, user)
 
 
@@ -342,5 +348,14 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user.password_reset_token = None
     user.password_reset_expires = None
     db.commit()
+
+    # Whoever knew the old password may still be signed in: end every open session.
+    open_sessions = (
+        db.query(UserSession)
+        .filter(UserSession.user_id == user.user_id, UserSession.logout_time.is_(None))
+        .all()
+    )
+    for open_session in open_sessions:
+        session_service.close_session(db, open_session.session_id)
 
     return {"detail": "Password reset successfully. You can now log in."}
