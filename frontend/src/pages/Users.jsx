@@ -181,97 +181,96 @@ export default function Users() {
         </div>
       )}
 
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Department</th>
-            <th>Status</th>
-            <th>Role</th>
-            <th>Change role</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => {
-            const isSelf = u.user_id === currentUser?.user_id;
-            const lastAdmin = isLastAdmin(u);
-            const currentRole = u.roles[0];
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Department</th>
+              <th>Status</th>
+              <th>Role</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => {
+              const isSelf = u.user_id === currentUser?.user_id;
+              const lastAdmin = isLastAdmin(u);
+              const currentRole = u.roles[0];
 
-            return (
-              <tr key={u.user_id}>
-                <td>
-                  {u.username}
-                  {isSelf && <span className="badge self-badge">You</span>}
-                </td>
-                <td>{u.email}</td>
-                <td>
-                  {isAdmin ? (
-                    <select
-                      value={u.department}
-                      onChange={(e) => handleChangeDepartment(u.user_id, e.target.value)}
-                    >
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    u.department
-                  )}
-                </td>
-                <td>
-                  {u.password_set ? (
-                    <span className="status-active">Active</span>
-                  ) : (
-                    <>
-                      <span className="status-pending">Setup pending</span>
-                      <button className="link-btn" onClick={() => handleResendSetup(u.user_id)}>
-                        Resend email
+              return (
+                <tr key={u.user_id}>
+                  <td>
+                    {/* Name with the email underneath; long values are cut with "…" and shown in full on hover. */}
+                    <span className="cell-truncate" title={u.username}>{u.username}</span>
+                    {isSelf && <span className="badge self-badge">You</span>}
+                    <div className="cell-truncate cell-sub" title={u.email}>{u.email}</div>
+                  </td>
+                  <td>
+                    {isAdmin ? (
+                      <select
+                        value={u.department}
+                        onChange={(e) => handleChangeDepartment(u.user_id, e.target.value)}
+                      >
+                        {DEPARTMENTS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      u.department
+                    )}
+                  </td>
+                  <td>
+                    {u.password_set ? (
+                      <span className="status-active">Active</span>
+                    ) : (
+                      <>
+                        <span className="status-pending">Setup pending</span>
+                        <button className="link-btn" onClick={() => handleResendSetup(u.user_id)}>
+                          Resend email
+                        </button>
+                      </>
+                    )}
+                  </td>
+                  <td>
+                    {/* One column: writers change the role in place, readers see it as a badge. */}
+                    {canWrite ? (
+                      <select
+                        className="role-select"
+                        value={currentRole?.role_id || ""}
+                        onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
+                        title={currentRole ? currentRole.role_name : "No role"}
+                      >
+                        <option value="" disabled>No role: select…</option>
+                        {roles.map((r) => (
+                          <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
+                        ))}
+                      </select>
+                    ) : currentRole ? (
+                      <span className="badge">{currentRole.role_name}</span>
+                    ) : (
+                      <span className="badge badge-warning">No role</span>
+                    )}
+                  </td>
+                  <td>
+                    {!canWrite ? (
+                      <span className="muted">—</span>
+                    ) : isSelf ? (
+                      <span className="muted">Protected</span>
+                    ) : lastAdmin ? (
+                      <span className="muted">Protected</span>
+                    ) : (
+                      <button className="link-btn danger" onClick={() => handleDeleteUser(u)}>
+                        Delete
                       </button>
-                    </>
-                  )}
-                </td>
-                <td>
-                  {currentRole ? (
-                    <span className="badge">{currentRole.role_name}</span>
-                  ) : (
-                    <span className="badge badge-warning">No role</span>
-                  )}
-                </td>
-                <td>
-                  {canWrite ? (
-                    <select
-                      value={currentRole?.role_id || ""}
-                      onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
-                    >
-                      <option value="" disabled>Select role…</option>
-                      {roles.map((r) => (
-                        <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-                <td>
-                  {!canWrite ? (
-                    <span className="muted">—</span>
-                  ) : isSelf ? (
-                    <span className="muted">Protected</span>
-                  ) : lastAdmin ? (
-                    <span className="muted">Protected</span>
-                  ) : (
-                    <button className="link-btn danger" onClick={() => handleDeleteUser(u)}>
-                      Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

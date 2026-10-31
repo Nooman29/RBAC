@@ -36,5 +36,8 @@ class AccessLog(Base):
     # add rows, so the anomaly features that count access_logs are unaffected.
     component = Column(String(60), nullable=True)
     endpoint = Column(String(200), nullable=True)
+    # What an administrative change did, in words (e.g. "Revoked write on user from Manager").
+    # A label on the same row, like component/endpoint, so it never changes what the model counts.
+    details = Column(String(300), nullable=True)
 
     session = relationship("UserSession", back_populates="access_logs")

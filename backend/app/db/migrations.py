@@ -41,6 +41,8 @@ _SCHEMA_STATEMENTS = [
     # tables come from create_all; these cover databases created before them.
     "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS live_alert_id INTEGER REFERENCES live_alerts(id)",
     "CREATE INDEX IF NOT EXISTS ix_access_logs_session_time ON access_logs (session_id, access_timestamp)",
+    # Audit detail for administrative changes (role grant/revoke/delete)
+    "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS details VARCHAR(300)",
 ]
 
 
