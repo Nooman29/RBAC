@@ -113,23 +113,29 @@ def unseen_ip(used: set) -> str:
             return ip
 
 
+def apply_trait(p: dict, trait: str, used_unusual_ips: set) -> dict:
+    """Makes session parameters unusual in one way (one of TRAITS)."""
+    if trait == "night":
+        p["hour"] = random.choice([0, 1, 2, 3, 4, 22, 23])
+    elif trait == "new_ip":
+        p["ip"] = unseen_ip(used_unusual_ips)
+    elif trait == "volume":
+        p["events"] = int(max(p["events"], 6) * random.uniform(3, 6))
+    elif trait == "long":
+        p["duration"] *= random.uniform(2, 4)
+    elif trait == "destructive":
+        p["action_weights"] = [0.3, 0.4, 0.3]
+    elif trait == "wide":
+        p["resource_weights"] = [1 / 3, 1 / 3, 1 / 3]
+    elif trait == "weekend":
+        p["weekend"] = True
+    return p
+
+
 def anomalous_params(profile: dict, used_unusual_ips: set) -> dict:
     p = normal_params(profile)
     for trait in random.sample(TRAITS, k=random.choice([1, 2, 2, 3])):
-        if trait == "night":
-            p["hour"] = random.choice([0, 1, 2, 3, 4, 22, 23])
-        elif trait == "new_ip":
-            p["ip"] = unseen_ip(used_unusual_ips)
-        elif trait == "volume":
-            p["events"] = int(max(p["events"], 6) * random.uniform(3, 6))
-        elif trait == "long":
-            p["duration"] *= random.uniform(2, 4)
-        elif trait == "destructive":
-            p["action_weights"] = [0.3, 0.4, 0.3]
-        elif trait == "wide":
-            p["resource_weights"] = [1 / 3, 1 / 3, 1 / 3]
-        elif trait == "weekend":
-            p["weekend"] = True
+        apply_trait(p, trait, used_unusual_ips)
     return p
 
 
