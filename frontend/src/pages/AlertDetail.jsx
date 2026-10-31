@@ -135,7 +135,7 @@ export default function AlertDetail() {
 
   return (
     <div>
-      <Link to="/alerts">&larr; Back to alerts</Link>
+      <Link to="/alerts" className="ds-btn ds-btn-sm ds-back">&larr; Back to alerts</Link>
       <h2>
         Alert #{alert.alert_id}
         {alert.is_overdue && <span className="badge badge-overdue" style={{ marginLeft: 10 }}>Overdue Review</span>}
@@ -184,7 +184,7 @@ export default function AlertDetail() {
         )}
 
         {alert.session_active && canReview && (
-          <button className="danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
+          <button className="ds-btn ds-btn-danger" onClick={handleTerminate} disabled={terminating} style={{ marginLeft: 12 }}>
             {terminating ? "Terminating…" : "Terminate Session"}
           </button>
         )}
@@ -343,7 +343,7 @@ export default function AlertDetail() {
             placeholder="Notes on this alert…"
           />
           <div>
-            <button onClick={handleSaveVerdict} disabled={saving || justSaved}>
+            <button className="ds-btn ds-btn-primary" onClick={handleSaveVerdict} disabled={saving || justSaved}>
               {justSaved ? "Saved ✓" : saving ? "Saving…" : "Save Verdict"}
             </button>
             {justSaved && <span className="info"> Updated — returning to alerts…</span>}

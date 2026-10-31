@@ -30,7 +30,7 @@ export default function ForgotPassword() {
           <p className="auth-alert auth-alert-info" role="status">
             If an account exists with that email, a reset link has been sent. Check your inbox.
           </p>
-          <Link to="/login" className="auth-link">Back to login</Link>
+          <Link to="/login" className="auth-secondary">Back to login</Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
@@ -48,7 +48,7 @@ export default function ForgotPassword() {
           <button type="submit" disabled={busy}>
             {busy ? "Sending…" : "Send reset link"}
           </button>
-          <Link to="/login" className="auth-link">Back to login</Link>
+          <Link to="/login" className="auth-secondary">Back to login</Link>
         </form>
       )}
     </AuthShell>

@@ -204,7 +204,7 @@ export default function Login() {
           </div>
           {error && <p className="auth-alert auth-alert-error" role="alert">{error}</p>}
           <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Continue"}</button>
-          <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
+          <Link to="/forgot-password" className="auth-secondary">Forgot password?</Link>
         </form>
       )}
 
@@ -229,7 +229,7 @@ export default function Login() {
               </span>
             </button>
           </div>
-          <button type="button" className="auth-link" onClick={startOver}>Use a different account</button>
+          <button type="button" className="secondary" onClick={startOver}>Use a different account</button>
         </div>
       )}
 
@@ -237,7 +237,7 @@ export default function Login() {
         <div>
           {error && <p className="auth-alert auth-alert-error" role="alert">{error}</p>}
           <FaceCapture onCapture={handleFaceCapture} onCancel={() => setStage("choose_method")} busy={faceBusy} />
-          <button type="button" className="auth-link" onClick={handleChooseOtp}>
+          <button type="button" className="secondary" onClick={handleChooseOtp}>
             Use email code instead
           </button>
         </div>
@@ -265,11 +265,11 @@ export default function Login() {
             {cooldown > 0 ? `Resend code (${cooldown}s)` : "Resend code"}
           </button>
           {hasFaceOption && (
-            <button type="button" className="auth-link" onClick={() => setStage("choose_method")}>
+            <button type="button" className="secondary" onClick={() => setStage("choose_method")}>
               Use Face ID instead
             </button>
           )}
-          <button type="button" className="auth-link" onClick={startOver}>Use a different account</button>
+          <button type="button" className="secondary" onClick={startOver}>Use a different account</button>
         </form>
       )}
     </AuthShell>

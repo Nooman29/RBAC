@@ -73,7 +73,7 @@ export default function ResetPassword() {
           <button type="submit" disabled={busy}>
             {busy ? "Resetting…" : "Reset password"}
           </button>
-          <Link to="/forgot-password" className="auth-link">Request a new link</Link>
+          <Link to="/forgot-password" className="auth-secondary">Request a new link</Link>
         </form>
       )}
     </AuthShell>

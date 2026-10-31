@@ -160,62 +160,64 @@ export default function ModelManagement() {
       {error && <p className="error">{error}</p>}
       {message && <p className="info">{message}</p>}
       {canManage && (
-        <button onClick={retrain} disabled={busy || data.retrain_in_progress}>
+        <button className="ds-btn ds-btn-primary" onClick={retrain} disabled={busy || data.retrain_in_progress}>
           {busy || data.retrain_in_progress ? "Working…" : "Retrain now"}
         </button>
       )}
 
       <h3 style={{ marginTop: 24 }}>Versions</h3>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Version</th>
-            <th>Status</th>
-            <th>Trained</th>
-            <th>By</th>
-            <th>Sessions</th>
-            <th>Recent false alarms</th>
-            <th>Known attacks caught</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.versions.map((v) => {
-            const badge = STATUS_BADGE[v.status] || { cls: "badge-neutral", label: v.status };
-            const vm = v.metrics || {};
-            const open = openVersion === v.version_id;
-            return [
-              <tr key={v.version_id}>
-                <td>
-                  <button className="link-button" onClick={() => setOpenVersion(open ? null : v.version_id)}>
-                    {open ? "▾" : "▸"} {v.version_id}
-                  </button>
-                </td>
-                <td><span className={`badge ${badge.cls}`}>{badge.label}</span></td>
-                <td>{when(v.created_at)}</td>
-                <td>{v.triggered_by}</td>
-                <td>{vm.n_sessions ?? "—"}</td>
-                <td>{pct(vm.holdout_flag_rate)}</td>
-                <td>{pct(vm.known_bad_caught_new)}</td>
-                <td>
-                  {canManage && v.passed && v.status !== "live" && (
-                    <button onClick={() => promote(v.version_id)} disabled={busy}>
-                      {v.status === "previous" ? "Roll back to this" : "Put live"}
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Status</th>
+              <th>Trained</th>
+              <th>By</th>
+              <th>Sessions</th>
+              <th>Recent false alarms</th>
+              <th>Known attacks caught</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.versions.map((v) => {
+              const badge = STATUS_BADGE[v.status] || { cls: "badge-neutral", label: v.status };
+              const vm = v.metrics || {};
+              const open = openVersion === v.version_id;
+              return [
+                <tr key={v.version_id}>
+                  <td>
+                    <button className="ds-btn ds-btn-sm" onClick={() => setOpenVersion(open ? null : v.version_id)}>
+                      {open ? "▾" : "▸"} {v.version_id}
                     </button>
-                  )}
-                </td>
-              </tr>,
-              open && (
-                <tr key={`${v.version_id}-checks`}>
-                  <td colSpan={8}>
-                    <Checks checks={v.checks || []} />
                   </td>
-                </tr>
-              ),
-            ];
-          })}
-        </tbody>
-      </table>
+                  <td><span className={`badge ${badge.cls}`}>{badge.label}</span></td>
+                  <td>{when(v.created_at)}</td>
+                  <td>{v.triggered_by}</td>
+                  <td>{vm.n_sessions ?? "—"}</td>
+                  <td>{pct(vm.holdout_flag_rate)}</td>
+                  <td>{pct(vm.known_bad_caught_new)}</td>
+                  <td>
+                    {canManage && v.passed && v.status !== "live" && (
+                      <button className="ds-btn ds-btn-sm ds-btn-primary" onClick={() => promote(v.version_id)} disabled={busy}>
+                        {v.status === "previous" ? "Roll back to this" : "Put live"}
+                      </button>
+                    )}
+                  </td>
+                </tr>,
+                open && (
+                  <tr key={`${v.version_id}-checks`}>
+                    <td colSpan={8}>
+                      <Checks checks={v.checks || []} />
+                    </td>
+                  </tr>
+                ),
+              ];
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -78,58 +78,61 @@ export default function LiveAlertsPanel() {
       {alerts.length === 0 && !error ? (
         <p className="muted">No open live alerts right now.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Rule</th>
-              <th>Severity</th>
-              <th>What happened</th>
-              <th>Hits</th>
-              <th>First seen</th>
-              <th>Session</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {alerts.map((a) => (
-              <tr key={a.live_alert_id}>
-                <td>{a.username}</td>
-                <td>
-                  {describeLiveRule(a.rule)}
-                  {a.is_learning && <span className="badge" style={{ marginLeft: 6 }}>Learning period</span>}
-                </td>
-                <td><span className={SEVERITY_BADGES[a.severity] || "badge"}>{a.severity}</span></td>
-                <td>
-                  {a.summary}
-                  {a.rule === "model_provisional" && topFeatures(a) && (
-                    <div className="muted">Top factors: {topFeatures(a)}</div>
-                  )}
-                </td>
-                <td>{a.hit_count}</td>
-                <td>{parseUtc(a.first_seen_at).toLocaleString()}</td>
-                <td>{sessionState(a)}</td>
-                <td>
-                  {canWrite && a.session_active && (
-                    <button className="danger-btn" onClick={() => handleTerminate(a)} disabled={busyId === a.live_alert_id}>
-                      {busyId === a.live_alert_id ? "Terminating…" : "Terminate"}
-                    </button>
-                  )}
-                  {canWrite && (
-                    <button
-                      className="link-btn"
-                      style={{ marginLeft: 8 }}
-                      onClick={() => handleDismiss(a)}
-                      disabled={busyId === a.live_alert_id}
-                    >
-                      Dismiss
-                    </button>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Rule</th>
+                <th>Severity</th>
+                <th>What happened</th>
+                <th>Hits</th>
+                <th>First seen</th>
+                <th>Session</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {alerts.map((a) => (
+                <tr key={a.live_alert_id}>
+                  <td>{a.username}</td>
+                  <td>
+                    {describeLiveRule(a.rule)}
+                    {a.is_learning && <span className="badge" style={{ marginLeft: 6 }}>Learning period</span>}
+                  </td>
+                  <td><span className={SEVERITY_BADGES[a.severity] || "badge"}>{a.severity}</span></td>
+                  <td>
+                    {a.summary}
+                    {a.rule === "model_provisional" && topFeatures(a) && (
+                      <div className="muted">Top factors: {topFeatures(a)}</div>
+                    )}
+                  </td>
+                  <td>{a.hit_count}</td>
+                  <td>{parseUtc(a.first_seen_at).toLocaleString()}</td>
+                  <td>{sessionState(a)}</td>
+                  <td>
+                    <span className="ds-actions">
+                      {canWrite && a.session_active && (
+                        <button
+                          className="ds-btn ds-btn-sm ds-btn-danger"
+                          onClick={() => handleTerminate(a)}
+                          disabled={busyId === a.live_alert_id}
+                        >
+                          {busyId === a.live_alert_id ? "Terminating…" : "Terminate"}
+                        </button>
+                      )}
+                      {canWrite && (
+                        <button className="ds-btn ds-btn-sm" onClick={() => handleDismiss(a)} disabled={busyId === a.live_alert_id}>
+                          Dismiss
+                        </button>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

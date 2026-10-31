@@ -81,7 +81,7 @@ export default function Sessions() {
       </p>
       <ViewOnlyNotice resource="dashboard" label="sessions" />
       <div className="filter-bar">
-        <button className="secondary-btn" onClick={load}>Refresh</button>
+        <button className="ds-btn" onClick={load}>Refresh</button>
         <label>
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
           Include ended sessions
@@ -114,7 +114,7 @@ export default function Sessions() {
               <td>
                 {statusLabel(s)}
                 {s.live_rules && s.live_rules.length > 0 && (
-                  <Link to="/alerts#live" className="badge badge-danger" style={{ marginLeft: 6 }}>
+                  <Link to="/alerts#live" className="ds-btn ds-btn-sm ds-btn-danger" style={{ marginLeft: 6 }}>
                     Live alert: {s.live_rules.map(describeLiveRule).join(", ")}
                   </Link>
                 )}
@@ -130,29 +130,30 @@ export default function Sessions() {
                 <td>{s.review_verdict ? VERDICT_LABELS[s.review_verdict] || s.review_verdict : "—"}</td>
               )}
               <td>
-                {s.is_active && canWrite && (
-                  <button
-                    className="danger-btn"
-                    onClick={() => handleTerminate(s.session_id)}
-                    disabled={busyId === s.session_id}
-                  >
-                    {busyId === s.session_id ? "Terminating…" : "Terminate"}
-                  </button>
-                )}
-                {s.alert_id && (
-                  <Link to={`/alerts/${s.alert_id}`} style={{ marginLeft: 8 }}>Review</Link>
-                )}
-                {s.alert_id && canWrite && s.is_anomaly === false && s.review_verdict !== "confirmed_threat" && (
-                  <button
-                    className="link-btn danger"
-                    style={{ marginLeft: 8 }}
-                    onClick={() => handleReportThreat(s)}
-                    disabled={busyId === s.session_id}
-                  >
-                    Report as threat
-                  </button>
-                )}
-                {!s.is_active && !s.alert_id && <span className="muted">—</span>}
+                <span className="ds-actions">
+                  {s.is_active && canWrite && (
+                    <button
+                      className="ds-btn ds-btn-sm ds-btn-danger"
+                      onClick={() => handleTerminate(s.session_id)}
+                      disabled={busyId === s.session_id}
+                    >
+                      {busyId === s.session_id ? "Terminating…" : "Terminate"}
+                    </button>
+                  )}
+                  {s.alert_id && (
+                    <Link to={`/alerts/${s.alert_id}`} className="ds-btn ds-btn-sm">Review</Link>
+                  )}
+                  {s.alert_id && canWrite && s.is_anomaly === false && s.review_verdict !== "confirmed_threat" && (
+                    <button
+                      className="ds-btn ds-btn-sm ds-btn-danger"
+                      onClick={() => handleReportThreat(s)}
+                      disabled={busyId === s.session_id}
+                    >
+                      Report as threat
+                    </button>
+                  )}
+                  {!s.is_active && !s.alert_id && <span className="muted">—</span>}
+                </span>
               </td>
             </tr>
           ))}

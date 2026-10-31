@@ -86,7 +86,7 @@ export default function Roles() {
               value={newRole.description}
               onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
             />
-            <button type="submit" disabled={creating}>
+            <button type="submit" className="ds-btn ds-btn-primary" disabled={creating}>
               {creating ? "Creating…" : "Create"}
             </button>
           </form>
@@ -100,7 +100,7 @@ export default function Roles() {
               <th>Role</th>
               <th>Description</th>
               <th>Users</th>
-              {canWrite && <th></th>}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -109,25 +109,28 @@ export default function Roles() {
               return (
                 <tr key={r.role_id}>
                   <td className="wrap-anywhere">
-                    <Link to={`/roles/${r.role_id}`}>{r.role_name}</Link>
+                    {r.role_name}
                     {r.is_builtin && <span className="badge badge-neutral" style={{ marginLeft: 6 }}>Built-in</span>}
                   </td>
                   <td className="wrap-anywhere">{r.description}</td>
                   <td>{r.user_count}</td>
-                  {canWrite && (
-                    <td>
-                      {/* The tooltip sits on a wrapper: disabled buttons do not show one in every browser. */}
-                      <span title={blocked || `Delete ${r.role_name}`}>
-                        <button
-                          className="danger-btn"
-                          onClick={() => handleDeleteRole(r)}
-                          disabled={Boolean(blocked) || busyId === r.role_id}
-                        >
-                          {busyId === r.role_id ? "Deleting…" : "Delete"}
-                        </button>
-                      </span>
-                    </td>
-                  )}
+                  <td>
+                    <span className="ds-actions">
+                      <Link to={`/roles/${r.role_id}`} className="ds-btn ds-btn-sm">View</Link>
+                      {canWrite && (
+                        // The tooltip sits on a wrapper: disabled buttons do not show one in every browser.
+                        <span title={blocked || `Delete ${r.role_name}`}>
+                          <button
+                            className="ds-btn ds-btn-sm ds-btn-danger"
+                            onClick={() => handleDeleteRole(r)}
+                            disabled={Boolean(blocked) || busyId === r.role_id}
+                          >
+                            {busyId === r.role_id ? "Deleting…" : "Delete"}
+                          </button>
+                        </span>
+                      )}
+                    </span>
+                  </td>
                 </tr>
               );
             })}
