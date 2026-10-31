@@ -27,7 +27,7 @@ export default function FirstTimeSetup() {
   if (!pendingToken) {
     return (
       <AuthShell title="Session expired" subtitle="Please log in again to continue setup.">
-        <Link to="/login" className="auth-link">Back to login</Link>
+        <Link to="/login" className="auth-secondary">Back to login</Link>
       </AuthShell>
     );
   }
@@ -92,7 +92,7 @@ export default function FirstTimeSetup() {
       {mode === "face" && (
         <div>
           <FaceCapture onCapture={handleFaceCapture} onCancel={() => setMode("choose")} busy={busy} />
-          <button type="button" className="auth-link" onClick={handleSkip} disabled={busy}>
+          <button type="button" className="secondary" onClick={handleSkip} disabled={busy}>
             I don't have camera access. Use email code instead
           </button>
         </div>

@@ -140,16 +140,6 @@ textarea {
   border-radius: 6px;
 }
 
-.inline-form button {
-  padding: 0.45rem 0.9rem;
-  border: none;
-  border-radius: 6px;
-  background: #2563eb;
-  color: white;
-  cursor: pointer;
-}
-
-.inline-form button:disabled { background: #9ca3af; cursor: not-allowed; }
 
 .notif-count {
   position: absolute; top: -6px; right: -8px; background: #d9534f; color: white;
@@ -178,27 +168,8 @@ textarea {
 
 .muted { color: #9ca3af; font-size: 0.9rem; }
 
-.link-btn {
-  border: none;
-  background: transparent;
-  color: #dc2626;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-  font-size: 0.9rem;
-}
 .session-status { margin: 1rem 0; }
 
-.danger-btn {
-  border: none;
-  background: #fee2e2;
-  color: #991b1b;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-}
-.danger-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .badge-danger {
   background: #fee2e2;
@@ -234,14 +205,6 @@ textarea {
 .shap-negative { background: #2563eb; }
 
 .shap-value { text-align: right; color: #6b7280; }
-.secondary-btn {
-  border: 1px solid #d1d5db;
-  background: white;
-  padding: 0.4rem 0.9rem;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-bottom: 1rem;
-}
 
 .badge-neutral {
   background: #f3f4f6;
@@ -277,7 +240,6 @@ textarea {
   z-index: 100;
 }
 .notif-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; }
-.mark-all-link { background: none; border: none; color: #5b8def; cursor: pointer; font-size: 0.8rem; }
 .notif-item { display: block; padding: 10px 12px; border-bottom: 1px solid #f2f2f2; text-decoration: none; color: inherit; }
 .notif-item.unread { background: #f0f6ff; }
 .notif-title { font-weight: 600; font-size: 0.85rem; }
@@ -314,10 +276,8 @@ textarea {
 }
 .role-summary-card ul { margin: 6px 0 0 0; padding-left: 18px; }
 
-.link-btn { background: none; border: none; color: #5b8def; cursor: pointer; text-decoration: underline; padding: 0; margin-top: 8px; }
 
 .self-badge { background: #5b8def; color: white; margin-left: 6px; font-size: 0.7rem; }
-.link-btn.danger { color: #d9534f; }
 .status-active { color: #2e7d32; font-weight: 600; }
 .status-pending { color: #b26a00; font-weight: 600; margin-right: 6px; }
 
@@ -461,10 +421,7 @@ textarea {
   font-size: 0.78rem; color: #9ca3af;
 }
 
-.needs-review-viewall {
-  display: inline-block; margin-top: 10px; color: #2563eb; font-size: 0.85rem; text-decoration: none;
-}
-.needs-review-viewall:hover { text-decoration: underline; }
+.needs-review-viewall { margin-top: 10px; }
 /* Tables that must never push the page sideways (#87). The table scrolls inside its own box only
    when the screen is too narrow for it; the page itself never scrolls horizontally. */
 .table-scroll { max-width: 100%; overflow-x: auto; }

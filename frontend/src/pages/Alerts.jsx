@@ -60,36 +60,40 @@ export default function Alerts() {
 
       {error && <p className="error">{error}</p>}
 
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Alert ID</th>
-            <th>Username</th>
-            <th>Session</th>
-            <th>Score</th>
-            <th>Flagged</th>
-            <th>Detection</th>
-            <th>Verdict</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {alerts.map((a) => (
-            <tr key={a.alert_id}>
-              <td>
-                <Link to={`/alerts/${a.alert_id}`}>{a.alert_id}</Link>
-              </td>
-              <td>{a.username}</td>
-              <td>{a.session_id}</td>
-              <td>{a.anomaly_score.toFixed(4)}</td>
-              <td>{a.is_anomaly ? "⚠️ Yes" : "No"}</td>
-              <td>{a.is_anomaly ? describeDetection(a.detection_reason) : "—"}</td>
-              <td>{a.review_verdict ? VERDICT_LABELS[a.review_verdict] || a.review_verdict : "—"}</td>
-              <td>{parseUtc(a.alert_timestamp).toLocaleString()}</td>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Alert ID</th>
+              <th>Username</th>
+              <th>Session</th>
+              <th>Score</th>
+              <th>Flagged</th>
+              <th>Detection</th>
+              <th>Verdict</th>
+              <th>Timestamp</th>
+              <th></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {alerts.map((a) => (
+              <tr key={a.alert_id}>
+                <td>{a.alert_id}</td>
+                <td>{a.username}</td>
+                <td>{a.session_id}</td>
+                <td>{a.anomaly_score.toFixed(4)}</td>
+                <td>{a.is_anomaly ? "⚠️ Yes" : "No"}</td>
+                <td>{a.is_anomaly ? describeDetection(a.detection_reason) : "—"}</td>
+                <td>{a.review_verdict ? VERDICT_LABELS[a.review_verdict] || a.review_verdict : "—"}</td>
+                <td>{parseUtc(a.alert_timestamp).toLocaleString()}</td>
+                <td>
+                  <Link to={`/alerts/${a.alert_id}`} className="ds-btn ds-btn-sm">View</Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {alerts.length === 0 && !error && <p>No alerts match the current filters.</p>}
     </div>
   );

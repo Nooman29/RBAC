@@ -80,7 +80,7 @@ export default function NotificationBell() {
           <div className="notif-header">
             <strong>Notifications</strong>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="mark-all-link">
+              <button onClick={markAllRead} className="ds-btn ds-btn-sm">
                 Mark all read
               </button>
             )}

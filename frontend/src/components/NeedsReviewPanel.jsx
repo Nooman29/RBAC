@@ -55,7 +55,7 @@ export default function NeedsReviewPanel() {
             ))}
           </div>
           {alerts.length > 6 && (
-            <Link to="/alerts" className="needs-review-viewall">View all {alerts.length} unreviewed alerts →</Link>
+            <Link to="/alerts" className="ds-btn ds-btn-sm needs-review-viewall">View all {alerts.length} unreviewed alerts →</Link>
           )}
         </>
       )}

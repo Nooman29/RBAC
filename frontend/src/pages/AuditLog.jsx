@@ -133,10 +133,10 @@ export default function AuditLog() {
 
       <div className="panel">
         <div className="preset-row">
-          <button type="button" className="secondary" onClick={() => applyPreset(1)}>Today</button>
-          <button type="button" className="secondary" onClick={() => applyPreset(7)}>Last 7 days</button>
-          <button type="button" className="secondary" onClick={() => applyPreset(30)}>Last 30 days</button>
-          <button type="button" className="secondary" onClick={clearFilters}>Clear all</button>
+          <button type="button" className="ds-btn ds-btn-sm" onClick={() => applyPreset(1)}>Today</button>
+          <button type="button" className="ds-btn ds-btn-sm" onClick={() => applyPreset(7)}>Last 7 days</button>
+          <button type="button" className="ds-btn ds-btn-sm" onClick={() => applyPreset(30)}>Last 30 days</button>
+          <button type="button" className="ds-btn ds-btn-sm" onClick={clearFilters}>Clear all</button>
         </div>
 
         <div className="inline-form">
@@ -195,10 +195,10 @@ export default function AuditLog() {
         )}
 
         <div className="inline-form">
-          <button onClick={handlePreview} disabled={loading}>
+          <button className="ds-btn ds-btn-primary" onClick={handlePreview} disabled={loading}>
             {loading ? "Loading…" : "Preview"}
           </button>
-          <button onClick={handleDownload} disabled={downloading} className="secondary">
+          <button onClick={handleDownload} disabled={downloading} className="ds-btn">
             {downloading ? "Exporting…" : "Download CSV"}
           </button>
         </div>
