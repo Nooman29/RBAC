@@ -465,3 +465,18 @@ textarea {
   display: inline-block; margin-top: 10px; color: #2563eb; font-size: 0.85rem; text-decoration: none;
 }
 .needs-review-viewall:hover { text-decoration: underline; }
+/* Tables that must never push the page sideways (#87). The table scrolls inside its own box only
+   when the screen is too narrow for it; the page itself never scrolls horizontally. */
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.cell-truncate {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.cell-sub { display: block; max-width: 15rem; font-size: 0.8rem; color: #6b7280; }
+.wrap-anywhere { overflow-wrap: anywhere; }
+.role-select { max-width: 10rem; }
+.audit-details { font-size: 0.8rem; color: #4b5563; margin-top: 2px; }

@@ -49,6 +49,14 @@ class PermissionOut(BaseModel):
 class RoleDetail(RoleOut):
     permissions: List[PermissionOut] = []
 
+class RoleListItem(RoleOut):
+    user_count: int = 0          # users currently holding the role
+    is_builtin: bool = False     # defined in the DSFS catalog: cannot be deleted
+
+class PermissionCatalog(BaseModel):
+    resources: List[str]
+    actions: List[str]
+
 class SetRoleRequest(BaseModel):
     role_id: int
 

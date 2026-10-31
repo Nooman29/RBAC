@@ -89,13 +89,16 @@ def require_permission(resource_name: str, action_type: str, audit: bool = True)
         if not audit:
             return user
 
-        session_service.log_access(
+        log = session_service.log_access(
             db,
             session_id=session_id,
             resource_name=resource_name,
             action_type=action_type,
             **audit_details,
         )
+        if request is not None and getattr(log, "log_id", None) is not None:
+            # Lets the route add a description of what it changed (session_service.annotate_access).
+            request.state.access_log_id = log.log_id
         live_detection_service.on_access(db, session_id)
         return user
 
