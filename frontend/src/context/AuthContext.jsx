@@ -86,7 +86,9 @@ export function AuthProvider({ children }) {
   async function logout() {
     try {
       await client.post("/api/auth/logout");
-    } catch (e) {}
+    } catch {
+      // signed out locally even if the server is unreachable or the session already ended
+    }
     setToken(null);
     localStorage.removeItem("access_token");
   }

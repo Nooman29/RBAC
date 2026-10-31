@@ -47,12 +47,7 @@ from sqlalchemy import and_, or_
 
 from app.core.config import settings
 from app.core.dsfs_catalog import risk_tier_for_roles
-from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
-
-try:
-    from app.ml.feature_engineering import MIN_HISTORY_FOR_ZSCORE
-except ImportError:  # keep the service importable if the constant is renamed
-    MIN_HISTORY_FOR_ZSCORE = 5
+from app.ml.feature_engineering import FEATURE_COLUMNS, MIN_HISTORY_FOR_ZSCORE, build_session_feature_vector
 from app.models.session import UserSession
 from app.models.anomaly import AnomalyAlert
 from app.services import notification_service
@@ -234,14 +229,7 @@ def _find_precedent(db: DBSession, session: UserSession, signature: str) -> Opti
     return None
 
 
-def _is_repeat_offender(db: DBSession, session: UserSession, signature: str) -> bool:
-    """Kept for compatibility with older callers."""
-    return _find_precedent(db, session, signature) is not None
-
-
-def score_session(
-    db: DBSession, session_id: int, include_simulated_in_baseline: bool = False
-) -> Optional[AnomalyAlert]:
+def score_session(db: DBSession, session_id: int) -> Optional[AnomalyAlert]:
     if not _load_artifacts():
         return None
 
@@ -255,9 +243,7 @@ def score_session(
     if existing:
         return existing
 
-    features = build_session_feature_vector(
-        db, session, include_simulated_in_baseline=include_simulated_in_baseline
-    )
+    features = build_session_feature_vector(db, session)
     ordered_values = [[features[col] for col in FEATURE_COLUMNS]]
 
     risk_tier = _user_risk_tier(session)

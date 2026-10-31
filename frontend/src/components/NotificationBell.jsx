@@ -18,7 +18,7 @@ export default function NotificationBell() {
     try {
       const res = await client.get("/api/notifications/unread-count");
       setUnreadCount(res.data.unread_count);
-    } catch (e) {
+    } catch {
       // ignore transient poll failures
     }
   }
@@ -27,7 +27,9 @@ export default function NotificationBell() {
     try {
       const res = await client.get("/api/notifications");
       setNotifications(res.data);
-    } catch (e) {}
+    } catch {
+      // keep the list shown; the next open retries
+    }
   }
 
   useEffect(() => {

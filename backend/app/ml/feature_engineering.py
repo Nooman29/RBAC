@@ -163,7 +163,6 @@ def build_user_history_stats(
     db: DBSession,
     user_id: int,
     exclude_session_id: Optional[int] = None,
-    include_simulated: bool = False,
     before: Optional[datetime] = None,
 ) -> dict:
     """
@@ -175,10 +174,7 @@ def build_user_history_stats(
     with the user's FUTURE behaviour; without this, training features would leak information
     that does not exist when a session is scored live.
 
-    Simulated attack sessions never count toward a baseline (include_simulated
-    is kept only for older callers and defaults to False).
-
-    Only sessions that count as normal behaviour are used (counts_as_normal_behaviour), so an
+    Simulated attack sessions never count toward a baseline. Only sessions that count as normal behaviour are used (counts_as_normal_behaviour), so an
     attack, however it was discovered, never teaches the baseline to treat it as normal.
     """
     query = (
@@ -187,10 +183,9 @@ def build_user_history_stats(
         .filter(
             UserSession.user_id == user_id,
             UserSession.session_duration.isnot(None),
+            UserSession.simulated_scenario.is_(None),
         )
     )
-    if not include_simulated:
-        query = query.filter(UserSession.simulated_scenario.is_(None))
     if exclude_session_id is not None:
         query = query.filter(UserSession.session_id != exclude_session_id)
     if before is not None:
@@ -223,7 +218,6 @@ def build_user_history_stats(
 def build_session_feature_vector(
     db: DBSession,
     session: UserSession,
-    include_simulated_in_baseline: bool = False,
     live_duration_sec: Optional[float] = None,
 ) -> dict:
     """
@@ -238,9 +232,7 @@ def build_session_feature_vector(
     """
     raw = build_raw_session_features(db, session, live_duration_sec=live_duration_sec)
     stats = build_user_history_stats(
-        db, session.user_id, exclude_session_id=session.session_id,
-        include_simulated=include_simulated_in_baseline,
-        before=session.login_time,
+        db, session.user_id, exclude_session_id=session.session_id, before=session.login_time,
     )
     enough_history = stats["n_sessions"] >= MIN_HISTORY_FOR_ZSCORE
 

@@ -24,6 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -43,11 +44,12 @@ def _cors_origins() -> list:
 
 @app.on_event("startup")
 def preload_biometric_models():
-    import logging
-    logger = logging.getLogger(__name__)
+    # Loads the anti-spoofing model through DeepFace's own model cache, so the first Face ID check after a
+    # restart is not slowed down by loading it. (Importing the model class directly broke when DeepFace
+    # moved it into per-engine packages.)
     try:
-        from deepface.models.spoofing.FasNet import Fasnet
-        Fasnet()
+        from deepface.modules import modeling
+        modeling.build_model(task="spoofing", model_name="Fasnet")
         logger.info("Anti-spoofing model preloaded successfully.")
     except Exception:
         logger.exception("Anti-spoofing model failed to preload at startup.")
@@ -88,7 +90,6 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     apply_dsfs_pass1_schema(engine)
     model_registry_service.start_scheduler()
-    logger = logging.getLogger(__name__)
     logger.info("Frontend (browser URL): %s", settings.FRONTEND_URL)
     logger.info("Allowed browser origins: %s", ", ".join(_cors_origins()))
     logger.info("Swagger UI (local browser URL): http://127.0.0.1:8000/docs")

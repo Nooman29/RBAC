@@ -502,9 +502,8 @@ export default function Integrations() {
     canEvents && { id: "events", label: "Reported events" },
   ].filter(Boolean);
 
-  useEffect(() => {
-    if (!tab && tabs.length) setTab(tabs[0].id);
-  }, [tabs.length]);
+  // The first tab the user may see is open until they pick another one
+  const activeTab = tab ?? tabs[0]?.id;
 
   if (!loaded) return <p className="muted">Loading…</p>;
   if (tabs.length === 0) return <p className="muted">You do not have permission to view integrations.</p>;
@@ -524,7 +523,7 @@ export default function Integrations() {
         {tabs.map((t) => (
           <button
             key={t.id}
-            className={`ds-tab${tab === t.id ? " active" : ""}`}
+            className={`ds-tab${activeTab === t.id ? " active" : ""}`}
             onClick={() => { setError(""); setInfo(""); setTab(t.id); }}
           >
             {t.label}
@@ -532,7 +531,7 @@ export default function Integrations() {
         ))}
       </div>
 
-      {tab === "clients" && (
+      {activeTab === "clients" && (
         <ClientsTab
           clients={clients}
           scopes={scopes}
@@ -542,8 +541,8 @@ export default function Integrations() {
           setInfo={setInfo}
         />
       )}
-      {tab === "audit" && <AuditTab clients={clients} setError={setError} />}
-      {tab === "events" && <EventsTab clients={clients} setError={setError} />}
+      {activeTab === "audit" && <AuditTab clients={clients} setError={setError} />}
+      {activeTab === "events" && <EventsTab clients={clients} setError={setError} />}
     </div>
   );
 }

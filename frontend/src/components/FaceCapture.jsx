@@ -14,7 +14,7 @@ export default function FaceCapture({ onCapture, onCancel, busy }) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
-      } catch (err) {
+      } catch {
         setCameraError("Could not access camera. Check browser permissions.");
       }
     }
