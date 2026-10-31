@@ -19,7 +19,7 @@ const DRIFT_TEXT = {
 const CHECK_LABELS = {
   enough_data: "Enough training data",
   scores_vary: "Model separates sessions",
-  recent_false_alarms: "False alarms on recent normal sessions",
+  recent_false_alarms: "False alarms on recent sessions",
   known_attacks: "Still catches known attacks",
   imported: "Imported",
 };

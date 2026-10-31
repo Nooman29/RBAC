@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.session import UserSession, AccessLog
@@ -36,6 +37,42 @@ def close_session(db: Session, session_id: int) -> Optional[UserSession]:
         logger.exception("Anomaly scoring failed for session_id=%s", session.session_id)
 
     return session
+
+
+def close_stale_sessions(db: Session, max_minutes: int) -> list:
+    """
+    Ends sessions left open longer than max_minutes (the access-token lifetime, so their token has
+    expired: the user closed the browser without signing out) and scores them.
+
+    The session ends at its LAST RECORDED ACTIVITY (latest access log), not at login + max_minutes:
+    otherwise every abandoned session gets the same made-up duration, which distorts the model's
+    session_duration_sec feature and its z-score. A session with no recorded activity lasted 0 s.
+    """
+    now = datetime.utcnow()
+    stale = (
+        db.query(UserSession)
+        .filter(UserSession.logout_time.is_(None), UserSession.login_time < now - timedelta(minutes=max_minutes))
+        .all()
+    )
+    if not stale:
+        return []
+
+    for s in stale:
+        last_activity = (
+            db.query(func.max(AccessLog.access_timestamp)).filter(AccessLog.session_id == s.session_id).scalar()
+        )
+        token_expiry = s.login_time + timedelta(minutes=max_minutes)
+        end = min(max(last_activity or s.login_time, s.login_time), token_expiry)
+        s.logout_time = end
+        s.session_duration = (end - s.login_time).total_seconds()
+    db.commit()
+
+    for s in stale:
+        try:
+            anomaly_service.score_session(db, s.session_id)
+        except Exception:
+            logger.exception("Anomaly scoring failed for auto-closed stale session_id=%s", s.session_id)
+    return stale
 
 
 def log_access(

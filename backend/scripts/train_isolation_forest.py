@@ -6,8 +6,9 @@ Run from backend/ (or inside the container):
 
 This uses the same workflow as the Retrain button on the Model page
 (app/services/model_registry_service.py):
-  - trains on NORMAL sessions only (no simulated attacks, no confirmed threats,
-    no flagged-and-unreviewed sessions; cleared sessions count as normal)
+  - trains on every closed, real session except simulated attacks and known threats
+    (confirmed, or repeating a confirmed threat's pattern); unreviewed flags stay in so
+    the threshold does not drop with every retrain
   - saves the run as a new version in app/ml/models/versions/<version_id>/
   - runs the guardrails (enough data, recent false alarms, known attacks)
   - promotes the version to live only if every guardrail passes
@@ -57,14 +58,13 @@ def main():
         db.close()
 
     m = record["metrics"]
-    print(f"Version {record['version_id']}: trained on {m['n_sessions']} normal sessions "
-          f"({m['excluded_sessions']} closed sessions excluded: simulated attacks, confirmed threats, "
-          f"or flagged and not yet reviewed).")
+    print(f"Version {record['version_id']}: trained on {m['n_sessions']} sessions "
+          f"({m['excluded_sessions']} closed sessions excluded: simulated attacks and known threats).")
     print(f"Training score: mean={m['train_score_mean']:.4f} sd={m['train_score_std']:.4f}")
     for tier, pct in TIER_PERCENTILES.items():
         print(f"  {tier:<8} tier @ p{pct}: {m['tier_thresholds'][tier]:.4f}")
     print(f"Recent false-alarm check: {_pct(m['holdout_flag_rate'])} of the {m['n_holdout']} most recent "
-          f"normal sessions flagged")
+          f"training sessions flagged")
     print(f"Known attacks caught: new {_pct(m['known_bad_caught_new'])}, "
           f"live {_pct(m['known_bad_caught_live'])} (of {m['n_known_bad']})")
     print("Checks:")
