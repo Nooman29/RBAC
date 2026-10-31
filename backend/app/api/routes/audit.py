@@ -64,6 +64,7 @@ def _collect(
                     resource_name=log.resource_name,
                     action_performed=log.action_performed,
                     endpoint=log.endpoint,
+                    details=log.details,
                     source="api",
                 )
             )
@@ -142,12 +143,12 @@ def export_audit(
     writer = csv.writer(output)
     writer.writerow([
         "timestamp", "username", "department", "session_id", "source",
-        "component", "resource_name", "action_performed", "endpoint",
+        "component", "resource_name", "action_performed", "endpoint", "details",
     ])
     for e in entries:
         writer.writerow([
             e.timestamp.isoformat(), e.username, e.department or "", e.session_id or "", e.source,
-            e.component, e.resource_name or "", e.action_performed, e.endpoint or "",
+            e.component, e.resource_name or "", e.action_performed, e.endpoint or "", e.details or "",
         ])
 
     filename = f"audit_log_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"

@@ -50,6 +50,7 @@ from app.db.database import Base
 import app.models  # noqa: F401  registers the core tables
 import app.models.anomaly  # noqa: F401
 import app.models.notification  # noqa: F401
+from app.core.business_time import local_now, to_local
 from app.ml import feature_engineering as fe
 from app.models.session import UserSession
 from app.models.user import User
@@ -204,7 +205,7 @@ def make_user(db, name):
 
 
 def with_day(day, make):
-    """Run the seed generator's session builder on a chosen calendar day."""
+    """Run the seed generator's session builder on a chosen LOCAL calendar day."""
     day = datetime(day.year, day.month, day.day)
     original = seed.random_day
     seed.random_day = lambda weekend: day
@@ -215,10 +216,11 @@ def with_day(day, make):
 
 
 def weekday_in(start, end):
+    """A random moment between two stored (UTC) times, returned as a LOCAL weekday datetime."""
     span = max(1, int((end - start).total_seconds()))
-    candidate = start
+    candidate = to_local(start)
     for _ in range(30):
-        candidate = start + timedelta(seconds=random.randint(0, span))
+        candidate = to_local(start + timedelta(seconds=random.randint(0, span)))
         if candidate.weekday() < 5:
             return candidate
     return candidate
@@ -270,7 +272,10 @@ def featurize(db, rows):
     cache = {}
     original = fe.build_raw_session_features
 
-    def cached(db_, session):
+    def cached(db_, session, live_duration_sec=None):
+        # Benchmark sessions are all closed, so live_duration_sec is always None here.
+        if live_duration_sec is not None:
+            return original(db_, session, live_duration_sec=live_duration_sec)
         if session.session_id not in cache:
             cache[session.session_id] = original(db_, session)
         return cache[session.session_id]
@@ -442,7 +447,7 @@ def threshold_strategies(train_s, train_users, test_s, test_users, y_test, tiers
 def cold_start(db, scaler, model, threshold, episodes):
     """New users: a fresh user with 0 or 3 earlier sessions, then one test session (normal or attack)."""
     rows = []
-    now = datetime.utcnow()
+    now = local_now()
     for history_len in (0, 3):
         for i in range(episodes * 2):
             attack = i >= episodes
@@ -451,7 +456,7 @@ def cold_start(db, scaler, model, threshold, episodes):
             for _ in range(history_len):
                 day = datetime(now.year, now.month, now.day) - timedelta(days=random.randint(30, 60))
                 with_day(day, lambda: seed.add_session(db, user.user_id, seed.normal_params(profile)))
-            test_day = weekday_in(now - timedelta(days=10), now - timedelta(days=1))
+            test_day = weekday_in(datetime.utcnow() - timedelta(days=10), datetime.utcnow() - timedelta(days=1))
             if attack:
                 session = sim.create_scenario_session(db, user.user_id, SCENARIOS[i % len(SCENARIOS)], day=test_day)
             else:

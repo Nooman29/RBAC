@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.core.rbac import require_permission
+from app.core.rbac import require_permission, get_current_user_and_session
 from app.core.config import settings
+from app.core.business_time import local_now, to_local, to_utc
 from app.core.visibility import (
     visibility_scope as _visibility_scope,
     apply_visibility as _apply_visibility,
@@ -25,7 +26,8 @@ from app.models.session import UserSession
 from app.models.user import User
 from app.models.role import Role
 from app.models.anomaly import AnomalyAlert
-from app.services import anomaly_service, attack_simulation_service
+from app.models.live_alert import LiveAlert, LiveSessionScore
+from app.services import anomaly_service, attack_simulation_service, live_detection_service
 from app.schemas.dashboard import (
     DashboardSummary,
     AnomalyAlertSummary,
@@ -38,6 +40,8 @@ from app.schemas.dashboard import (
     SimulateAttackResult,
     DetectionOutcomeSummary,
     AuditLogEntryOut,
+    LiveAlertOut,
+    LiveScoreOut,
 )
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -51,17 +55,64 @@ OVERDUE_HOURS = 24
 # Standard User (own) behave exactly as before; the DSFS roles now get their own scopes.
 
 
-def _assert_alert_in_scope(alert: AnomalyAlert, scope: dict):
+def _refuse_out_of_scope(db: Session, current, kind: str, scope: dict, action: str, endpoint: str):
+    # A record outside the caller's scope: refused, and counted by live detection (R1).
+    _, session_id = current
+    live_detection_service.on_denied(db, session_id, "dashboard", action, endpoint=endpoint, reason="visibility")
+    raise HTTPException(status_code=403, detail=out_of_scope_message(kind, scope))
+
+
+def _assert_alert_in_scope(alert: AnomalyAlert, scope: dict, db: Session, current, action: str, endpoint: str):
     session = alert.session
     user = session.user if session else None
     if not _in_scope(user, scope):
-        raise HTTPException(status_code=403, detail=out_of_scope_message("alert", scope))
+        _refuse_out_of_scope(db, current, "alert", scope, action, endpoint)
 
 
-def _assert_session_in_scope(session: UserSession, scope: dict):
+def _assert_session_in_scope(session: UserSession, scope: dict, db: Session, current, action: str, endpoint: str):
     user = session.user
     if not _in_scope(user, scope):
-        raise HTTPException(status_code=403, detail=out_of_scope_message("session", scope))
+        _refuse_out_of_scope(db, current, "session", scope, action, endpoint)
+
+
+def _build_live_alert_out(alert: LiveAlert) -> LiveAlertOut:
+    session = alert.session
+    user = session.user if session else None
+    return LiveAlertOut(
+        live_alert_id=alert.id,
+        session_id=alert.session_id,
+        user_id=alert.user_id,
+        username=user.username if user else "unknown",
+        department=user.department if user else None,
+        rule=alert.rule,
+        severity=alert.severity,
+        status=alert.status,
+        summary=alert.summary,
+        hit_count=alert.hit_count,
+        is_learning=alert.is_learning,
+        first_seen_at=alert.first_seen_at,
+        last_seen_at=alert.last_seen_at,
+        evidence=json.loads(alert.evidence_json) if alert.evidence_json else [],
+        session_active=(session.logout_time is None and not session.terminated) if session else False,
+        session_terminated=session.terminated if session else False,
+        resolved_by=alert.resolved_by,
+        resolved_at=alert.resolved_at,
+    )
+
+
+def _build_live_score_out(score: LiveSessionScore) -> LiveScoreOut:
+    return LiveScoreOut(
+        scored_at=score.scored_at,
+        anomaly_score=score.anomaly_score,
+        peak_score=score.peak_score,
+        threshold_used=score.threshold_used,
+        risk_tier=score.risk_tier,
+        is_learning=score.is_learning,
+        n_events=score.n_events,
+        elapsed_sec=score.elapsed_sec,
+        flagged=score.anomaly_score >= score.threshold_used,
+        shap_contributions=json.loads(score.shap_values_json) if score.shap_values_json else [],
+    )
 
 
 def _is_overdue(alert: AnomalyAlert) -> bool:
@@ -115,7 +166,8 @@ def get_summary(
 
     roles_configured = db.query(Role).count()
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    # "Today" starts at local midnight, converted to UTC because alerts are stored in UTC.
+    today_start = to_utc(local_now().replace(hour=0, minute=0, second=0, microsecond=0))
     alert_q = (
         db.query(AnomalyAlert)
         .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
@@ -176,11 +228,18 @@ def list_alerts(
     return results
 
 
-def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
+def _build_alert_detail(alert: AnomalyAlert, db: Session) -> AnomalyAlertDetail:
     session = alert.session
     user = session.user if session else None
     features = json.loads(alert.features_json) if alert.features_json else {}
     shap_contributions = json.loads(alert.shap_values_json) if alert.shap_values_json else []
+    live_alerts = (
+        db.query(LiveAlert)
+        .filter(LiveAlert.session_id == alert.session_id)
+        .order_by(LiveAlert.first_seen_at)
+        .all()
+    )
+    live_score = db.query(LiveSessionScore).filter(LiveSessionScore.session_id == alert.session_id).first()
 
     return AnomalyAlertDetail(
         alert_id=alert.alert_id,
@@ -210,6 +269,8 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
         risk_tier=alert.risk_tier,
         is_learning=alert.is_learning,
         prior_sessions=alert.prior_sessions,
+        live_alerts=[_build_live_alert_out(a) for a in live_alerts],
+        live_score=_build_live_score_out(live_score) if live_score else None,
     )
 
 
@@ -217,13 +278,15 @@ def _build_alert_detail(alert: AnomalyAlert) -> AnomalyAlertDetail:
 def get_alert_detail(
     alert_id: int,
     current_user: User = Depends(require_permission("dashboard", "read")),
+    current=Depends(get_current_user_and_session),
     db: Session = Depends(get_db),
 ):
     alert = db.query(AnomalyAlert).filter(AnomalyAlert.alert_id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    _assert_alert_in_scope(alert, _visibility_scope(current_user))
-    return _build_alert_detail(alert)
+    _assert_alert_in_scope(alert, _visibility_scope(current_user), db, current,
+                           "read", f"GET /api/dashboard/alerts/{alert_id}")
+    return _build_alert_detail(alert, db)
 
 
 @router.patch("/alerts/{alert_id}", response_model=AnomalyAlertDetail)
@@ -231,12 +294,14 @@ def update_alert(
     alert_id: int,
     payload: AlertReviewUpdate,
     current_user=Depends(require_permission("dashboard", "write")),
+    current=Depends(get_current_user_and_session),
     db: Session = Depends(get_db),
 ):
     alert = db.query(AnomalyAlert).filter(AnomalyAlert.alert_id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
-    _assert_alert_in_scope(alert, _visibility_scope(current_user))
+    _assert_alert_in_scope(alert, _visibility_scope(current_user), db, current,
+                           "write", f"PATCH /api/dashboard/alerts/{alert_id}")
 
     # A verdict can be recorded on ANY scored session, flagged or not. A "confirmed_threat"
     # on a session the model let through is how a missed detection is reported; the detector
@@ -257,25 +322,28 @@ def update_alert(
 
     db.commit()
     db.refresh(alert)
-    return _build_alert_detail(alert)
+    return _build_alert_detail(alert, db)
 
 
 @router.post("/sessions/{session_id}/terminate", response_model=TerminateSessionResult)
 def terminate_session(
     session_id: int,
     current_user: User = Depends(require_permission("dashboard", "write")),
+    current=Depends(get_current_user_and_session),
     db: Session = Depends(get_db),
 ):
     session = db.query(UserSession).filter(UserSession.session_id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _assert_session_in_scope(session, _visibility_scope(current_user))
+    _assert_session_in_scope(session, _visibility_scope(current_user), db, current,
+                             "write", f"POST /api/dashboard/sessions/{session_id}/terminate")
 
     was_active = session.logout_time is None
     session.terminated = True
     if was_active:
         session.logout_time = datetime.utcnow()
         session.session_duration = (session.logout_time - session.login_time).total_seconds()
+    live_detection_service.resolve_for_terminated_session(db, session.session_id, current_user.user_id)
 
     db.commit()
     db.refresh(session)
@@ -314,11 +382,19 @@ def list_sessions(
 
     session_ids = [s.session_id for s in sessions]
     alerts_by_session = {}
+    live_rules_by_session = defaultdict(list)
     if session_ids:
         alerts_by_session = {
             a.session_id: a
             for a in db.query(AnomalyAlert).filter(AnomalyAlert.session_id.in_(session_ids)).all()
         }
+        open_live = (
+            db.query(LiveAlert.session_id, LiveAlert.rule)
+            .filter(LiveAlert.session_id.in_(session_ids), LiveAlert.status == "open")
+            .all()
+        )
+        for sid, rule in open_live:
+            live_rules_by_session[sid].append(rule)
 
     results = []
     for s in sessions:
@@ -340,9 +416,59 @@ def list_sessions(
                 is_anomaly=alert.is_anomaly if alert else None,
                 anomaly_score=alert.anomaly_score if alert else None,
                 review_verdict=alert.review_verdict if alert else None,
+                live_rules=sorted(live_rules_by_session.get(s.session_id, [])),
             )
         )
     return results
+
+
+# Live (mid-session) detection: early warnings while a session is still active.
+# See app/services/live_detection_service.py.
+
+@router.get("/live-alerts", response_model=List[LiveAlertOut])
+def list_live_alerts(
+    status: str = Query("open", pattern="^(open|all)$"),
+    # audit=False: the panel polls this every few seconds, and polling must not count as the
+    # administrator's own activity in the anomaly model's features.
+    current_user: User = Depends(require_permission("dashboard", "read", audit=False)),
+    db: Session = Depends(get_db),
+):
+    scope = _visibility_scope(current_user)
+    query = (
+        db.query(LiveAlert)
+        .join(UserSession, LiveAlert.session_id == UserSession.session_id)
+        .join(User, UserSession.user_id == User.user_id)
+    )
+    query = _apply_visibility(query, scope)
+    if status == "open":
+        query = query.filter(LiveAlert.status == "open")
+    alerts = query.order_by(LiveAlert.last_seen_at.desc()).limit(200).all()
+    return [_build_live_alert_out(a) for a in alerts]
+
+
+@router.post("/live-alerts/{live_alert_id}/dismiss", response_model=LiveAlertOut)
+def dismiss_live_alert(
+    live_alert_id: int,
+    current_user: User = Depends(require_permission("dashboard", "write")),
+    current=Depends(get_current_user_and_session),
+    db: Session = Depends(get_db),
+):
+    alert = db.query(LiveAlert).filter(LiveAlert.id == live_alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Live alert not found")
+    user = alert.session.user if alert.session else None
+    scope = _visibility_scope(current_user)
+    if not _in_scope(user, scope):
+        _refuse_out_of_scope(db, current, "alert", scope, "write",
+                             f"POST /api/dashboard/live-alerts/{live_alert_id}/dismiss")
+
+    if alert.status == "open":
+        alert.status = "dismissed"
+        alert.resolved_by = current_user.user_id
+        alert.resolved_at = datetime.utcnow()
+        db.commit()
+        db.refresh(alert)
+    return _build_live_alert_out(alert)
 
 
 @router.get("/charts/alerts-over-time")
@@ -352,20 +478,19 @@ def alerts_over_time(
     db: Session = Depends(get_db),
 ):
     scope = _visibility_scope(current_user)
-    start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    # Days are local calendar days; the filter compares with stored UTC times.
+    start = (local_now() - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     query = (
         db.query(AnomalyAlert)
         .join(UserSession, AnomalyAlert.session_id == UserSession.session_id)
         .join(User, UserSession.user_id == User.user_id)
-        .filter(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= start)
+        .filter(AnomalyAlert.is_anomaly.is_(True), AnomalyAlert.alert_timestamp >= to_utc(start))
     )
     query = _apply_visibility(query, scope)
 
     counts = defaultdict(int)
     for a in query.all():
-        counts[a.alert_timestamp.date().isoformat()] += 1
+        counts[to_local(a.alert_timestamp).date().isoformat()] += 1
 
     return [
         {"date": (start + timedelta(days=i)).date().isoformat(),
@@ -381,17 +506,16 @@ def session_activity(
     db: Session = Depends(get_db),
 ):
     scope = _visibility_scope(current_user)
-    start = (datetime.utcnow() - timedelta(days=days - 1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    # Days are local calendar days; the filter compares with stored UTC times.
+    start = (local_now() - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     query = db.query(UserSession).join(User, UserSession.user_id == User.user_id).filter(
-        UserSession.login_time >= start
+        UserSession.login_time >= to_utc(start)
     )
     query = _apply_visibility(query, scope)
 
     counts = defaultdict(int)
     for s in query.all():
-        counts[s.login_time.date().isoformat()] += 1
+        counts[to_local(s.login_time).date().isoformat()] += 1
 
     return [
         {"date": (start + timedelta(days=i)).date().isoformat(),

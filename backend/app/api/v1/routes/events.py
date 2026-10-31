@@ -17,6 +17,7 @@ from app.schemas.module_event import EventPage
 from app.services.introspection_service import validate_access_token
 from app.services.module_event_service import query_events
 from app.services.rbac_service import user_has_permission
+from app.services import live_detection_service
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -89,8 +90,9 @@ class EventsOut(BaseModel):
     status_code=201,
     summary="Report user activity from your module",
     description=(
-        "Records what a user did in your module. The events join the user's live session and are "
-        "included when the session is scored for anomalies at logout. Report meaningful business "
+        "Records what a user did in your module. The events join the user's live session, are "
+        "checked at once by live detection, and are included when the session is scored for "
+        "anomalies at logout. Report meaningful business "
         "actions (for example 'attendance batch submitted'), not one event per row, so normal work "
         "does not inflate the user's activity volume. Rejected as a whole (nothing recorded) if any "
         "event is invalid. An inactive token returns 401 `token_inactive`."
@@ -135,11 +137,15 @@ def record_events(
     db.add_all(event_rows)
     db.flush()                       # assigns ids
     event_ids = [row.id for row in event_rows]
+    not_permitted = sum(1 for row in event_rows if not row.permitted)
     db.commit()
+
+    # Mid-session checks; never fails the request (errors are logged inside).
+    live_detection_service.on_module_events(db, session.session_id, event_rows)
 
     return EventsOut(
         recorded=len(event_rows),
-        not_permitted=sum(1 for row in event_rows if not row.permitted),
+        not_permitted=not_permitted,
         user_id=user.user_id,
         session_id=session.session_id,
         event_ids=event_ids,

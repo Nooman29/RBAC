@@ -1,0 +1,13 @@
+Version 20261031-095954: trained on 577 normal sessions (32 closed sessions excluded: simulated attacks, confirmed threats, or flagged and not yet reviewed).
+Training score: mean=0.3868 sd=0.0653
+  high     tier @ p90: 0.4698
+  standard tier @ p95: 0.5137
+  low      tier @ p97: 0.5448
+Recent false-alarm check: 4.3% of the 115 most recent normal sessions flagged
+Known attacks caught: new 60.9%, live 60.9% (of 23)
+Checks:
+  PASS  enough_data: 577 normal sessions (minimum 30)
+  PASS  scores_vary: training scores vary between sessions
+  PASS  recent_false_alarms: 4.3% of the 115 most recent normal sessions would be flagged (limit 15%, about 5% expected)
+  PASS  known_attacks: catches 61% of 23 known attacks, live model 61% (may be at most 10% lower)
+Promoted to live. Restart the backend so it loads the new model: docker compose restart backend

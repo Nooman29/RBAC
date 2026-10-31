@@ -2,11 +2,12 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from app.core.business_time import to_local, to_utc
 from app.ml import feature_engineering as fe
 from app.models.anomaly import AnomalyAlert
 from app.models.session import AccessLog, UserSession
 
-SATURDAY_NIGHT = datetime(2026, 8, 8, 23, 15)
+SATURDAY_NIGHT = to_utc(datetime(2026, 8, 8, 23, 15))   # Saturday 23:15 local time, stored in UTC
 
 
 def _session(db, user, login_time, duration=None, location=None, simulated=None, actions=()):
@@ -69,6 +70,26 @@ def test_raw_features_count_actions_and_time_context(db, make_user):
     assert raw["distinct_resources"] == 2
     assert raw["distinct_actions"] == 3
     assert (raw["n_read"], raw["n_write"], raw["n_delete"]) == (2, 1, 1)
+
+
+def test_business_time_round_trip_is_nairobi():
+    stored = datetime(2026, 10, 28, 5, 0)                  # 05:00 UTC
+    assert to_local(stored) == datetime(2026, 10, 28, 8, 0)   # 08:00 EAT (UTC+3)
+    assert to_utc(to_local(stored)) == stored
+
+
+def test_hour_and_weekday_are_read_in_local_time(db, make_user):
+    user = make_user()
+    morning = _session(db, user, datetime(2026, 10, 28, 5, 0), duration=60.0)    # Wed 08:00 in Nairobi
+    late = _session(db, user, datetime(2026, 10, 30, 21, 30), duration=60.0)     # Fri 21:30 UTC = Sat 00:30 local
+
+    raw_morning = fe.build_raw_session_features(db, morning)
+    raw_late = fe.build_raw_session_features(db, late)
+
+    # An 08:00 start in Nairobi is business hours, although it is 05:00 UTC.
+    assert (raw_morning["login_hour"], raw_morning["is_offhours"], raw_morning["is_weekend"]) == (8, 0, 0)
+    # Late Friday UTC is already Saturday night locally.
+    assert (raw_late["login_hour"], raw_late["is_offhours"], raw_late["is_weekend"]) == (0, 1, 1)
 
 
 def test_new_ip_flag_compares_against_prior_locations(db, make_user):

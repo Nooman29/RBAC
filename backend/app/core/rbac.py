@@ -7,7 +7,7 @@ from app.core.components import component_for
 from app.core.security import decode_access_token
 from app.models.user import User
 from app.models.session import UserSession
-from app.services import session_service
+from app.services import session_service, live_detection_service
 
 bearer_scheme = HTTPBearer()
 
@@ -51,7 +51,12 @@ def get_current_user(current=Depends(get_current_user_and_session)) -> User:
     return user
 
 
-def require_permission(resource_name: str, action_type: str):
+def require_permission(resource_name: str, action_type: str, audit: bool = True):
+    """
+    audit=False still enforces the permission but writes no access log and runs no live
+    checks. Only for background polling (e.g. the live alerts panel): access logs are the
+    anomaly model's activity counts, and polling is not user activity.
+    """
     def dependency(
         current=Depends(get_current_user_and_session),
         db: Session = Depends(get_db),
@@ -59,12 +64,6 @@ def require_permission(resource_name: str, action_type: str):
     ) -> User:
         from app.services.rbac_service import user_has_permission
         user, session_id = current
-
-        if not user_has_permission(user, resource_name, action_type):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing permission: {action_type} on {resource_name}",
-            )
 
         # FastAPI always injects the request. It is optional only so the guard can still be
         # called directly (as unit tests do), in which case it logs exactly what it always did.
@@ -75,13 +74,32 @@ def require_permission(resource_name: str, action_type: str):
                 "endpoint": f"{request.method} {request.url.path}"[:200],
             }
 
-        session_service.log_access(
+        if not user_has_permission(user, resource_name, action_type):
+            # Refused requests are not access logs (the model never sees them), but live
+            # detection counts them to spot probing.
+            live_detection_service.on_denied(
+                db, session_id, resource_name, action_type,
+                endpoint=audit_details.get("endpoint"), reason="permission",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing permission: {action_type} on {resource_name}",
+            )
+
+        if not audit:
+            return user
+
+        log = session_service.log_access(
             db,
             session_id=session_id,
             resource_name=resource_name,
             action_type=action_type,
             **audit_details,
         )
+        if request is not None and getattr(log, "log_id", None) is not None:
+            # Lets the route add a description of what it changed (session_service.annotate_access).
+            request.state.access_log_id = log.log_id
+        live_detection_service.on_access(db, session_id)
         return user
 
     return dependency

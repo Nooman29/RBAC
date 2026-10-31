@@ -28,7 +28,7 @@ from app.models.role import Role
 from app.models.service_client import ServiceClient
 from app.models.session import AccessLog, UserSession
 from app.models.user import User
-from app.services import session_service
+from app.services import live_detection_service, session_service
 from app.services.service_client_service import (
     generate_client_id,
     generate_client_secret,
@@ -105,6 +105,7 @@ def cleanup(db):
         db.query(ModuleEvent).filter(ModuleEvent.user_id.in_(user_ids)).delete(synchronize_session=False)
         session_ids = [s.session_id for s in db.query(UserSession.session_id).filter(UserSession.user_id.in_(user_ids)).all()]
         if session_ids:
+            live_detection_service.delete_for_sessions(db, session_ids)   # live alerts reference sessions
             db.query(AnomalyAlert).filter(AnomalyAlert.session_id.in_(session_ids)).delete(synchronize_session=False)
             db.query(AccessLog).filter(AccessLog.session_id.in_(session_ids)).delete(synchronize_session=False)
             db.query(UserSession).filter(UserSession.session_id.in_(session_ids)).delete(synchronize_session=False)

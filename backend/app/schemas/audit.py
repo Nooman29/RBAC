@@ -14,4 +14,5 @@ class AuditEntryOut(BaseModel):
     resource_name: Optional[str] = None
     action_performed: str
     endpoint: Optional[str] = None
+    details: Optional[str] = None      # what an administrative change did, e.g. "Revoked write on user from Manager"
     source: str                        # "api" (permission-gated request) or "ui" (interface action)

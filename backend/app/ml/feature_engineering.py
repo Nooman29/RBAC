@@ -9,6 +9,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session as DBSession
 
+from app.core.business_time import to_local
 from app.models.session import UserSession, AccessLog
 
 from sqlalchemy import and_, or_
@@ -54,6 +55,7 @@ MIN_STD = {                     # absolute floor per feature (in the feature's o
 
 
 def _offhours(hour: int) -> int:
+    """hour is a LOCAL business-time hour (see app.core.business_time)."""
     return int(hour < 7 or hour > 19)
 
 
@@ -63,10 +65,16 @@ def _zscore(value: float, mean: float, std: float, floor: float) -> float:
     return max(-Z_CLIP, min(Z_CLIP, z))
 
 
-def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
+def build_raw_session_features(
+    db: DBSession, session: UserSession, live_duration_sec: Optional[float] = None
+) -> dict:
+    """live_duration_sec: elapsed time of a session that is still active (it has no
+    session_duration yet). Only live mid-session scoring passes it."""
     login_time: datetime = session.login_time
-    hour = login_time.hour
-    weekday = login_time.weekday()
+    # Stored in UTC; hour and weekday are read in the programme's local time zone.
+    local_login = to_local(login_time)
+    hour = local_login.hour
+    weekday = local_login.weekday()
 
     logs = (
         db.query(AccessLog)
@@ -99,7 +107,10 @@ def build_raw_session_features(db: DBSession, session: UserSession) -> dict:
         and session.access_location not in prior_locations
     )
 
-    duration = session.session_duration if session.session_duration is not None else 0.0
+    if live_duration_sec is not None:
+        duration = live_duration_sec
+    else:
+        duration = session.session_duration if session.session_duration is not None else 0.0
 
     return {
         "login_hour": hour,
@@ -195,7 +206,10 @@ def build_user_history_stats(
 
 
 def build_session_feature_vector(
-    db: DBSession, session: UserSession, include_simulated_in_baseline: bool = False
+    db: DBSession,
+    session: UserSession,
+    include_simulated_in_baseline: bool = False,
+    live_duration_sec: Optional[float] = None,
 ) -> dict:
     """
     Full feature dict for one session, keyed exactly by FEATURE_COLUMNS.
@@ -203,8 +217,11 @@ def build_session_feature_vector(
     The baseline is point-in-time (only sessions before this one). Personal z-scores are neutral
     (0.0) until the user has MIN_HISTORY_FOR_ZSCORE normal sessions, use a floored standard
     deviation, and are clamped to +/- Z_CLIP.
+
+    live_duration_sec scores a session that is still active (the session so far). The baseline
+    is the same either way; end-of-session scoring never passes it.
     """
-    raw = build_raw_session_features(db, session)
+    raw = build_raw_session_features(db, session, live_duration_sec=live_duration_sec)
     stats = build_user_history_stats(
         db, session.user_id, exclude_session_id=session.session_id,
         include_simulated=include_simulated_in_baseline,

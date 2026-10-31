@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sklearn.metrics import roc_auc_score
 from sqlalchemy import func
 
+from app.core.business_time import local_now, to_local, to_utc
 from app.core.config import settings
 from app.db.database import SessionLocal
 from app.ml.feature_engineering import FEATURE_COLUMNS
@@ -119,6 +120,7 @@ def run_normal_session(db, user_id):
     A session that looks like this user's own past behaviour (same hour, similar length, activity and
     resources, same IP), placed on a recent weekday and scored through the real pipeline. The template
     is an older session that counts as normal, so every earlier session is 'prior' history.
+    The hour and weekday are kept in LOCAL business time, like the features read them.
     """
     now = datetime.utcnow()
     cutoff = now - timedelta(days=MIN_AGE_DAYS)
@@ -145,12 +147,13 @@ def run_normal_session(db, user_id):
     if template is None:
         return None
 
-    login = (now - timedelta(days=attack_simulation_service._pick_weekday_offset(now))).replace(
-        hour=template.login_time.hour,
+    local_today = local_now()
+    login = to_utc((local_today - timedelta(days=attack_simulation_service._pick_weekday_offset(local_today))).replace(
+        hour=to_local(template.login_time).hour,
         minute=random.randint(0, 59),
         second=random.randint(0, 59),
         microsecond=0,
-    )
+    ))
     duration = max(60.0, template.session_duration * random.uniform(0.85, 1.15))
     session = UserSession(
         user_id=user_id,
@@ -194,7 +197,8 @@ def temp_user(db, label):
 
 
 def add_closed_session(db, user, days_ago, n_events, hour=10, duration=1800.0, ip="10.0.0.5"):
-    login = (datetime.utcnow() - timedelta(days=days_ago)).replace(hour=hour, minute=0, second=0, microsecond=0)
+    """hour is local business time."""
+    login = to_utc((local_now() - timedelta(days=days_ago)).replace(hour=hour, minute=0, second=0, microsecond=0))
     session = UserSession(
         user_id=user.user_id, login_time=login, logout_time=login + timedelta(seconds=duration),
         session_duration=duration, access_location=ip, terminated=False,
@@ -211,7 +215,7 @@ def add_closed_session(db, user, days_ago, n_events, hour=10, duration=1800.0, i
 
 def cold_start_check(db):
     """Ordinary sessions for users with no history, one past session, and twelve past sessions."""
-    test_days = attack_simulation_service._pick_weekday_offset(datetime.utcnow())
+    test_days = attack_simulation_service._pick_weekday_offset(local_now())
 
     none_user = temp_user(db, "none")
     s_none = add_closed_session(db, none_user, test_days, n_events=6)

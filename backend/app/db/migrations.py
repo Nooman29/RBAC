@@ -37,6 +37,12 @@ _SCHEMA_STATEMENTS = [
     "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS risk_tier VARCHAR(20)",
     "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS is_learning BOOLEAN",
     "ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS prior_sessions INTEGER",
+    # Live (mid-session) detection. The live_alerts, denied_attempts and live_session_scores
+    # tables come from create_all; these cover databases created before them.
+    "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS live_alert_id INTEGER REFERENCES live_alerts(id)",
+    "CREATE INDEX IF NOT EXISTS ix_access_logs_session_time ON access_logs (session_id, access_timestamp)",
+    # Audit detail for administrative changes (role grant/revoke/delete)
+    "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS details VARCHAR(300)",
 ]
 
 

@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     MODEL_RETRAIN_CHECK_HOURS: int = 24
     MODEL_RETRAIN_FIRST_CHECK_SECONDS: int = 600
 
+    # Time zone the detection features read clock hours and weekdays in (login hour, off-hours,
+    # weekend, live "unusual hour"). Timestamps are still stored in UTC. Changing it changes the
+    # model's features, so retrain afterwards.
+    BUSINESS_TIMEZONE: str = "Africa/Nairobi"
+
     # Browser-facing base URL for account and alert email links.
     FRONTEND_URL: str = "http://127.0.0.1:5173"
 
