@@ -27,7 +27,7 @@ from app.models.user import User
 from app.models.role import Role
 from app.models.anomaly import AnomalyAlert
 from app.models.live_alert import LiveAlert, LiveSessionScore
-from app.services import anomaly_service, attack_simulation_service, live_detection_service
+from app.services import anomaly_service, attack_simulation_service, live_detection_service, session_service
 from app.schemas.dashboard import (
     DashboardSummary,
     AnomalyAlertSummary,
@@ -122,30 +122,7 @@ def _is_overdue(alert: AnomalyAlert) -> bool:
 
 
 def _auto_close_stale_sessions(db: Session):
-    cutoff_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    threshold = datetime.utcnow() - timedelta(minutes=cutoff_minutes)
-
-    stale = (
-        db.query(UserSession)
-        .filter(UserSession.logout_time.is_(None), UserSession.login_time < threshold)
-        .all()
-    )
-    if not stale:
-        return
-
-    for s in stale:
-        s.logout_time = s.login_time + timedelta(minutes=cutoff_minutes)
-        s.session_duration = (s.logout_time - s.login_time).total_seconds()
-    db.commit()
-
-    for s in stale:
-        try:
-            anomaly_service.score_session(db, s.session_id)
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception(
-                "Anomaly scoring failed for auto-closed stale session_id=%s", s.session_id
-            )
+    session_service.close_stale_sessions(db, settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
 
 @router.get("/summary", response_model=DashboardSummary)

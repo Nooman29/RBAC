@@ -6,6 +6,7 @@ Each folder is one evaluation run with its raw outputs, a written summary and im
 |---|---|---|
 | `2026-10-31-timezone-fix/` | Reading clock hours in Nairobi time instead of UTC: effect on real logins, and detection quality before vs after | `summary.md`, `figures/` |
 | `2026-10-31-live-detection/` | Live (mid-session) detection: each rule triggered on the running system, provisional vs final score | `results.md`, `screenshots/` |
+| `2026-10-31-pipeline-fixes/` | Training-set rule (threshold drift over weekly retrains), familiar addresses, stale-session duration | `summary.md`, `figures/` |
 
 `2026-10-31-timezone-fix/results.html` shows every table in one page (open it in a browser).
 
@@ -25,5 +26,6 @@ Each folder is one evaluation run with its raw outputs, a written summary and im
 | `2026-10-31-live-detection/screenshots/03_sessions_live_badges.png` | Active sessions with live alert badges |
 | `2026-10-31-live-detection/screenshots/04_alert_detail_provisional_vs_final.png` | Provisional vs official score after termination |
 | `2026-10-31-live-detection/screenshots/05_live_rules_summary.png` | Table of what each rule caught |
+| `2026-10-31-pipeline-fixes/figures/01_retrain_stability.png` | Threshold and false alarms over 8 weekly retrains, previous vs current training rule |
 
 The live demo script for the presentation is in `docs/LIVE_DETECTION_DEMO.md`.

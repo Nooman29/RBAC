@@ -38,7 +38,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
 
@@ -49,6 +49,7 @@ from app.ml.feature_engineering import (
     MIN_HISTORY_FOR_ZSCORE,
     _offhours,
     build_session_feature_vector,
+    counts_as_normal_behaviour,
 )
 from app.models.anomaly import AnomalyAlert
 from app.models.live_alert import DeniedAttempt, LiveAlert, LiveSessionScore
@@ -362,9 +363,9 @@ def _check_burst(db: DBSession, session: UserSession, tier: str, now: datetime) 
 
 def _clean_prior_sessions(db: DBSession, session: UserSession):
     """
-    The user's earlier closed, non-simulated sessions that count as normal behaviour: the
-    same rule as feature_engineering.build_user_history_stats, so a flagged-unreviewed or
-    confirmed-threat session never makes its hours look "usual".
+    The user's earlier closed, non-simulated sessions that count as normal behaviour
+    (feature_engineering.counts_as_normal_behaviour, the same rule as the z-score baseline), so
+    a flagged-unreviewed or confirmed-threat session never makes its hours look "usual".
     """
     return (
         db.query(UserSession.login_time, UserSession.logout_time)
@@ -375,17 +376,7 @@ def _clean_prior_sessions(db: DBSession, session: UserSession):
             UserSession.session_duration.isnot(None),
             UserSession.simulated_scenario.is_(None),
             UserSession.login_time < session.login_time,
-            or_(
-                AnomalyAlert.alert_id.is_(None),
-                and_(
-                    AnomalyAlert.is_anomaly.is_(False),
-                    or_(
-                        AnomalyAlert.review_verdict.is_(None),
-                        AnomalyAlert.review_verdict != anomaly_service.CONFIRMED_THREAT,
-                    ),
-                ),
-                AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
-            ),
+            counts_as_normal_behaviour(),
         )
         .all()
     )

@@ -7,10 +7,18 @@ promoted; its files are copied to the paths in settings, which is where
 anomaly_service loads from. registry.json records every version, its checks
 and its metrics, so any earlier version can be promoted again (rollback).
 
+Training data: every closed, real session except simulated attacks and known threats (confirmed by
+an administrator, or flagged for repeating a confirmed threat's pattern and not cleared since).
+Sessions the model itself flagged that nobody has reviewed yet STAY in: the threshold is a
+percentile of the training scores, so dropping the model's own flags would cut off the top of the
+distribution on every retrain and lower the threshold each time (more and more false alarms).
+Isolation Forest tolerates a few unusual sessions in its training data. Per-user baselines are
+stricter (feature_engineering.counts_as_normal_behaviour).
+
 Guardrails, checked before a new version may go live:
-  1. enough_data          at least MIN_SESSIONS_TO_TRAIN normal sessions
+  1. enough_data          at least MIN_SESSIONS_TO_TRAIN training sessions
   2. scores_vary          the model does not give every session the same score
-  3. recent_false_alarms  trained on all but the most recent 20% of normal
+  3. recent_false_alarms  trained on all but the most recent 20% of training
                           sessions, it flags at most 15% of those recent ones
                           (about 5% is expected at the 95th percentile)
   4. known_attacks        on simulated attacks and confirmed threats (never used
@@ -46,13 +54,14 @@ import joblib
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, not_, or_
 
 from app.core.config import settings
 from app.core.dsfs_catalog import TIER_PERCENTILES
 from app.ml.feature_engineering import FEATURE_COLUMNS, build_session_feature_vector
 from app.models.anomaly import AnomalyAlert
 from app.models.session import UserSession
+from app.services.anomaly_service import CONFIRMED_THREAT, REASON_CONFIRMED as REASON_CONFIRMED_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +78,10 @@ DRIFT_FLAG_RATE_FACTOR = 2.0
 DRIFT_MEAN_SHIFT = 0.5
 EXPECTED_FLAG_RATE = round(1 - TIER_PERCENTILES["standard"] / 100, 4)
 
-# Configuration selected on validation in scripts/model_experiments.py
-# (contamination is not used: the threshold is a percentile of the training scores).
+# max_samples=1.0 is the setting selected on validation in scripts/model_experiments.py. The number
+# of trees made almost no difference there (validation F1 0.955-0.960 for 100-500 trees; the top
+# configuration used 500), so 200 keeps retraining and SHAP explanations fast. contamination is
+# not used: the threshold is a percentile of the training scores.
 MODEL_PARAMS = {"n_estimators": 200, "max_samples": 1.0, "random_state": 42, "n_jobs": -1}
 
 FILE_NAMES = {"model": "isolation_forest.joblib", "scaler": "scaler.joblib", "threshold": "threshold.json"}
@@ -187,25 +198,29 @@ def load_registry() -> dict:
 
 # ---------------------------------------------------------------- data
 
-def _normal_sessions_query(db):
-    """Sessions that count as NORMAL behaviour (same rule as the per-user baseline)."""
+def is_known_threat():
+    """SQL condition (on a query outer-joined to AnomalyAlert): confirmed by an administrator, or
+    flagged for repeating a confirmed threat's pattern and not reviewed since.
+
+    NULLs are replaced with "" first: in SQL, NULL = 'x' is NULL (not false), and NOT NULL is
+    still NULL, so not_(...) would silently drop every session that has no verdict yet."""
+    verdict = func.coalesce(AnomalyAlert.review_verdict, "")
+    return or_(
+        verdict == CONFIRMED_THREAT,
+        and_(func.coalesce(AnomalyAlert.detection_reason, "") == REASON_CONFIRMED_PATTERN, verdict == ""),
+    )
+
+
+def _training_sessions_query(db):
+    """Closed, real sessions except known threats, oldest first (see the module docstring for
+    why unreviewed flags stay in)."""
     return (
         db.query(UserSession)
         .filter(UserSession.session_duration.isnot(None))
         .outerjoin(AnomalyAlert, AnomalyAlert.session_id == UserSession.session_id)
         .filter(
             UserSession.simulated_scenario.is_(None),
-            or_(
-                AnomalyAlert.alert_id.is_(None),
-                and_(
-                    AnomalyAlert.is_anomaly.is_(False),
-                    or_(
-                        AnomalyAlert.review_verdict.is_(None),
-                        AnomalyAlert.review_verdict != "confirmed_threat",
-                    ),
-                ),
-                AnomalyAlert.review_verdict.in_(["false_positive", "authorized_exception"]),
-            ),
+            or_(AnomalyAlert.alert_id.is_(None), not_(is_known_threat())),
         )
         .order_by(UserSession.login_time.asc())
     )
@@ -220,9 +235,9 @@ def _matrix(db, sessions) -> np.ndarray:
 
 
 def load_training_table(db) -> tuple:
-    """(session_ids, X, total_closed) for the normal sessions, oldest first."""
+    """(session_ids, X, total_closed) for the training sessions, oldest first."""
     total_closed = db.query(UserSession).filter(UserSession.session_duration.isnot(None)).count()
-    sessions = _normal_sessions_query(db).all()
+    sessions = _training_sessions_query(db).all()
     return [s.session_id for s in sessions], _matrix(db, sessions), total_closed
 
 
@@ -293,7 +308,7 @@ def evaluate_guardrails(*, n_sessions: int, train_score_std: float, n_holdout: i
                         known_bad_rate_new: Optional[float], known_bad_rate_live: Optional[float]) -> list:
     checks = [
         _check("enough_data", n_sessions >= MIN_SESSIONS_TO_TRAIN,
-               f"{n_sessions} normal sessions (minimum {MIN_SESSIONS_TO_TRAIN})"),
+               f"{n_sessions} training sessions (minimum {MIN_SESSIONS_TO_TRAIN})"),
         _check("scores_vary", train_score_std > 1e-6,
                "training scores vary between sessions" if train_score_std > 1e-6
                else "every session got the same score; the features carry no signal"),
@@ -302,7 +317,7 @@ def evaluate_guardrails(*, n_sessions: int, train_score_std: float, n_holdout: i
     if n_holdout >= MIN_HOLDOUT_FOR_CHECK and holdout_flag_rate is not None:
         checks.append(_check(
             "recent_false_alarms", holdout_flag_rate <= MAX_HOLDOUT_FLAG_RATE,
-            f"{holdout_flag_rate:.1%} of the {n_holdout} most recent normal sessions would be flagged "
+            f"{holdout_flag_rate:.1%} of the {n_holdout} most recent training sessions would be flagged "
             f"(limit {MAX_HOLDOUT_FLAG_RATE:.0%}, about {EXPECTED_FLAG_RATE:.0%} expected)"))
     else:
         checks.append(_check("recent_false_alarms", True,
@@ -412,7 +427,7 @@ def train_candidate(db, triggered_by: str, promote: bool = True) -> dict:
         thr_h = float(np.percentile(scores_h, TIER_PERCENTILES["standard"]))
         holdout_rate = _flag_rate(m_h, s_h, thr_h, X[-n_holdout:])
 
-        # 2) Final model on all normal sessions
+        # 2) Final model on all training sessions
         model, scaler, scores = _fit(X)
         threshold = float(np.percentile(scores, TIER_PERCENTILES["standard"]))
         tier_thresholds = {t: float(np.percentile(scores, p)) for t, p in TIER_PERCENTILES.items()}
