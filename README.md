@@ -87,6 +87,65 @@ choosing Face ID or the email-code fallback.
 | http://127.0.0.1:8000/docs | Backend API docs (dashboard routes) |
 | http://127.0.0.1:8000/api/v1/docs | Integration API docs (for other modules) |
 
+## Pages of the system
+
+Menus show only what the signed-in user's role allows, and the server checks every request again, so typing a
+hidden address leads to a "no permission" banner ([screenshot](docs/report-assets/screenshots/15_r1_refused-page-permission-banner.png)) rather than
+data. What a page shows is also limited by the role's data scope (global, school, department, organisation or
+own records). Screenshots of every page are in [`docs/report-assets/screenshots/`](docs/report-assets/screenshots/).
+
+**Signing in and account setup** (no sign-in needed)
+
+| Page | Address | What it does | Screenshot |
+|---|---|---|---|
+| Sign in | `/login` | Password, then Face ID (with a liveness check) or a six-digit code sent by email | [password](docs/report-assets/screenshots/01_signin_password-step.png), [choice](docs/report-assets/screenshots/02_signin_choose-face-id-or-email-code.png), [Face ID](docs/report-assets/screenshots/03_signin_face-id-camera.png), [code](docs/report-assets/screenshots/04_signin_email-code.png) |
+| Set password | `/setup-password` | Opened from the welcome email: a new user chooses their password | |
+| First-time setup | `/first-time-setup` | Enrol Face ID or continue with email codes (after the email is verified) | |
+| Forgot / reset password | `/forgot-password`, `/reset-password` | Request a reset link by email, then choose a new password | |
+
+**Security** (roles with `dashboard` permissions)
+
+| Page | Address | Who sees it | What it does | Screenshot |
+|---|---|---|---|---|
+| Dashboard | `/` | dashboard: read | Alerts waiting for review, active sessions, users, roles, alerts today, 14-day charts | [administrator](docs/report-assets/screenshots/05_dashboard_administrator-all-records.png), [manager (department scope)](docs/report-assets/screenshots/06_dashboard_manager-department-scope.png) |
+| Sessions | `/sessions` | dashboard: read | Active (and ended) sessions with live-alert badges; terminate a session | [screenshot](docs/report-assets/screenshots/16_sessions_active-with-live-alert-badges.png) |
+| Alerts | `/alerts` | dashboard: read | Live warnings from rules R1-R5 while sessions run, and scored sessions; filter and review | [live panel](docs/report-assets/screenshots/17_alerts_in-progress-panel-r1-to-r5.png), [alerts](docs/report-assets/screenshots/18_alerts_live-panel-and-scored-sessions.png) |
+| Alert detail | `/alerts/:id` | dashboard: read | Score, threshold and risk tier, provisional vs final score, SHAP explanation, verdict (confirmed threat, false positive, authorised exception) | [scores](docs/report-assets/screenshots/30_alert-detail_provisional-vs-final-score.png), [SHAP](docs/report-assets/screenshots/31_alert-detail_shap-explanation.png) |
+| Detection Outcomes | `/detection-outcomes` | dashboard: read | Summary of administrator verdicts and overdue reviews | [screenshot](docs/report-assets/screenshots/20_detection-outcomes_verdict-summary.png) |
+| Audit Log | `/audit-log` | dashboard: read | Every audited request by component, with a description of administrative changes; CSV export | [screenshot](docs/report-assets/screenshots/19_audit-log_role-changes-with-details.png) |
+| Simulate Attack | `/simulate-attack` | dashboard: write | Runs one of three attack scenarios through the real scoring pipeline | [screenshot](docs/report-assets/screenshots/23_simulate-attack_scenarios.png) |
+| Detection Model | `/model` | dashboard: read, global scope | Live model version, thresholds per risk tier, drift, version history with the four guardrails, retrain and roll back | [live version](docs/report-assets/screenshots/21_detection-model_live-version-and-drift.png), [versions](docs/report-assets/screenshots/22_detection-model_versions-and-guardrails.png) |
+
+**Access control**
+
+| Page | Address | Who sees it | What it does | Screenshot |
+|---|---|---|---|---|
+| Users | `/users` | user: read (changes need user: write) | Create users (they get a setup email), assign a role, set department, delete | [screenshot](docs/report-assets/screenshots/08_users_list-and-role-assignment.png) |
+| Roles | `/roles` | role: read | Roles with how many users hold each; create roles, delete unused custom roles | [list](docs/report-assets/screenshots/09_roles_list-users-builtin-delete.png), [delete](docs/report-assets/screenshots/12_roles_delete-unused-role.png) |
+| Role detail | `/roles/:id` | role: read (changes need role: write) | Grant and revoke permissions from the catalogue of resources and actions | [grant](docs/report-assets/screenshots/10_roles_grant-permission.png), [revoke](docs/report-assets/screenshots/11_roles_revoke-permission.png) |
+| Compare Roles | `/roles-comparison` | role: read | Permission matrix of all roles side by side | [screenshot](docs/report-assets/screenshots/13_compare-roles_permission-matrix.png) |
+
+**Integrations and account**
+
+| Page | Address | Who sees it | What it does | Screenshot |
+|---|---|---|---|---|
+| Integrations | `/integrations` | service_client: read or fraud: read | Service clients of other DSFS modules, their authorisation audit, and the activity events they report | [clients](docs/report-assets/screenshots/24_integrations_service-clients.png), [audit](docs/report-assets/screenshots/28_integrations_authorization-audit-allowed-denied.png), [events](docs/report-assets/screenshots/29_integrations_reported-events.png) |
+| My Access | `/my-access` | everyone | The user's role, data scope, risk tier and what they may do in each module | [administrator](docs/report-assets/screenshots/14_my-access_administrator.png), [teacher](docs/report-assets/screenshots/07_my-access_teacher-school-scope.png) |
+| Face ID Setup | `/face-id-setup` | everyone | Enrol or replace Face ID for future sign-ins | |
+
+**Demo attendance module** (http://127.0.0.1:9000, see [`demo/README.md`](demo/README.md)): a separate DSFS module
+with no accounts of its own; it signs users in through this service and asks it before every action
+([sign-in](docs/report-assets/screenshots/25_attendance-module_sign-in.png), [allowed](docs/report-assets/screenshots/26_attendance-module_allowed-own-school.png), [denied](docs/report-assets/screenshots/27_attendance-module_denied-other-school.png)).
+
+## Project documents
+
+| Where | What |
+|---|---|
+| [`docs/evaluation/`](docs/evaluation/) | Evaluation runs of the anomaly detector, each with raw outputs, a summary and figures (start with its README) |
+| [`docs/report-assets/`](docs/report-assets/) | Material for the final report: figures, key code excerpts and the screenshots above |
+| [`docs/LIVE_DETECTION_DEMO.md`](docs/LIVE_DETECTION_DEMO.md) | Step-by-step script for demonstrating live detection |
+| [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) | How another module uses this service |
+
 ## Configuration
 
 `.env` (repository root, read by Docker Compose):
