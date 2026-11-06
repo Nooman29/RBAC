@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.db.database import get_db
 from app.models.user import User
 from app.models.session import UserSession
+from app.core.crypto import hash_token
 from app.core.rate_limit import client_ip
 from app.schemas.user import (
     ForgotPasswordRequest,
@@ -135,7 +136,8 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 
 @router.post("/setup-password")
 def setup_password(payload: SetupPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.password_setup_token == payload.token).first()
+    # Tokens are stored as their hash, so look the user up by the hash of the token in the link
+    user = db.query(User).filter(User.password_setup_token == hash_token(payload.token)).first()
     if not user or user.password_setup_expires is None:
         raise HTTPException(status_code=400, detail="Invalid or expired setup link. Contact an administrator for a new one.")
 
@@ -327,7 +329,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     # never reveal which emails are registered to an anonymous requester.
     if user and user.password_set:
         reset_token = secrets.token_urlsafe(32)
-        user.password_reset_token = reset_token
+        user.password_reset_token = hash_token(reset_token)   # the email has the token, the database its hash
         user.password_reset_expires = datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_EXPIRE_HOURS)
         db.commit()
         password_reset_service.send_reset_email(user, reset_token)
@@ -337,7 +339,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
 
 @router.post("/reset-password")
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.password_reset_token == payload.token).first()
+    user = db.query(User).filter(User.password_reset_token == hash_token(payload.token)).first()
     if not user or user.password_reset_expires is None:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link. Request a new one.")
 

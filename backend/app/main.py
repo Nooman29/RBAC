@@ -15,7 +15,7 @@ from app.models import service_client  # noqa: F401  (registers service_clients 
 from app.models import module_event  # noqa: F401  (registers module_events)
 from app.models import ui_event  # noqa: F401  (registers ui_events)
 from app.api.routes import notifications
-from app.db.migrations import apply_dsfs_pass1_schema
+from app.db.migrations import apply_dsfs_pass1_schema, protect_stored_secrets
 from app.services import model_registry_service
 
 import logging
@@ -89,6 +89,7 @@ def health(db: Session = Depends(get_db)):
 def on_startup():
     Base.metadata.create_all(bind=engine)
     apply_dsfs_pass1_schema(engine)
+    protect_stored_secrets(engine)
     model_registry_service.start_scheduler()
     logger.info("Frontend (browser URL): %s", settings.FRONTEND_URL)
     logger.info("Allowed browser origins: %s", ", ".join(_cors_origins()))

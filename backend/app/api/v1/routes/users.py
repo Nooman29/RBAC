@@ -20,6 +20,7 @@ from app.api.v1.schemas import (
     UserUpdateV1,
 )
 from app.core.constants import DEPARTMENTS
+from app.core.crypto import hash_token
 from app.core.security import hash_password
 from app.db.database import get_db
 from app.models.guardian import GuardianLink
@@ -125,7 +126,7 @@ def create_user(
         organization_id=payload.organization_id,
         password=hash_password(secrets.token_urlsafe(32)),   # placeholder until they set their own
         password_set=False,
-        password_setup_token=setup_token,
+        password_setup_token=hash_token(setup_token),   # only the hash is stored; the email has the token
         password_setup_expires=(
             datetime.now(timezone.utc) + timedelta(hours=SETUP_TOKEN_EXPIRE_HOURS)
         ).replace(tzinfo=None),
