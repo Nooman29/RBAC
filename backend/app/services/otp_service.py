@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from sqlalchemy.orm import Session
 from app.models.otp import OTPCode
 from app.core.config import settings
+from app.core.crypto import hash_token, token_matches
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ def generate_and_send_otp(db: Session, user_id: str, recipient_email: str) -> bo
     code = generate_code()
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_EXPIRY_SECONDS)
 
-    db.add(OTPCode(user_id=user_id, code=code, expires_at=expires_at, used=False))
+    # Only the hash is stored; the code itself exists only in the email.
+    db.add(OTPCode(user_id=user_id, code=hash_token(code), expires_at=expires_at, used=False))
     db.commit()
 
     msg = MIMEText(f"Your verification code is: {code}\nExpires in {settings.OTP_EXPIRY_SECONDS // 60} minutes.")
@@ -53,7 +55,7 @@ def verify_otp(db: Session, user_id: int, entered_code: str) -> bool:
         return False
     if datetime.now(timezone.utc) > record.expires_at.replace(tzinfo=timezone.utc):
         return False
-    if not secrets.compare_digest(entered_code.strip(), record.code):
+    if not token_matches(entered_code.strip(), record.code):
         record.failed_attempts = (record.failed_attempts or 0) + 1
         if record.failed_attempts >= MAX_OTP_ATTEMPTS:
             record.used = True

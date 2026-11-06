@@ -8,7 +8,7 @@ class OTPCode(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    code = Column(String(6), nullable=False)
+    code = Column(String(64), nullable=False)          # HMAC-SHA256 of the emailed code (app/core/crypto.py)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False, nullable=False)
     failed_attempts = Column(Integer, default=0, nullable=False)

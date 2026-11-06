@@ -14,6 +14,7 @@ import logging
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.db.database import Base
 from app.models.guardian import GuardianLink
@@ -45,6 +46,8 @@ _SCHEMA_STATEMENTS = [
     "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS details VARCHAR(300)",
     # Wrong guesses per emailed code (a code is burned after MAX_OTP_ATTEMPTS)
     "ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS failed_attempts INTEGER NOT NULL DEFAULT 0",
+    # Emailed codes are stored as a 64-character hash (protect_stored_secrets below)
+    "ALTER TABLE otp_codes ALTER COLUMN code TYPE VARCHAR(64)",
 ]
 
 
@@ -54,3 +57,51 @@ def apply_dsfs_pass1_schema(engine: Engine) -> None:
         for statement in _SCHEMA_STATEMENTS:
             conn.execute(text(statement))
     logger.info("DSFS schema is up to date.")
+
+
+def protect_stored_secrets(engine: Engine) -> dict:
+    """
+    Converts secrets saved before they were protected (app/core/crypto.py): face templates are encrypted
+    (or re-encrypted under a newly configured key), and outstanding emailed codes and password-setup/reset tokens are replaced by their hash, so links and
+    codes already sent keep working. Rows that are already protected are left alone, so this is safe to run
+    on every startup. Returns how many rows of each kind were converted.
+    """
+    from app.core.crypto import (
+        decrypt_template, encrypt_template, hash_token, is_encrypted_template, is_token_hash, needs_rotation,
+        rotate_template,
+    )
+    from app.models.biometric import BiometricEnrollment
+    from app.models.otp import OTPCode
+    from app.models.user import User
+
+    counts = {"face_templates": 0, "rotated_templates": 0, "codes": 0, "setup_tokens": 0, "reset_tokens": 0}
+    with Session(bind=engine) as db:
+        for row in db.query(BiometricEnrollment).all():
+            if not is_encrypted_template(row.embedding):
+                row.embedding = encrypt_template(decrypt_template(row.embedding))
+                counts["face_templates"] += 1
+            elif needs_rotation(row.embedding):
+                # Encrypted with an older key (e.g. before BIOMETRIC_ENCRYPTION_KEY was set): move to the new key.
+                try:
+                    row.embedding = rotate_template(row.embedding)
+                    counts["rotated_templates"] += 1
+                except ValueError:
+                    logger.error("Face template of user_id=%s cannot be decrypted with any configured key; "
+                                 "the user must enrol Face ID again", row.user_id)
+        for row in db.query(OTPCode).all():
+            if not is_token_hash(row.code):
+                row.code = hash_token(row.code)
+                counts["codes"] += 1
+        for user in db.query(User).filter(
+            (User.password_setup_token.isnot(None)) | (User.password_reset_token.isnot(None))
+        ).all():
+            if user.password_setup_token and not is_token_hash(user.password_setup_token):
+                user.password_setup_token = hash_token(user.password_setup_token)
+                counts["setup_tokens"] += 1
+            if user.password_reset_token and not is_token_hash(user.password_reset_token):
+                user.password_reset_token = hash_token(user.password_reset_token)
+                counts["reset_tokens"] += 1
+        db.commit()
+    if any(counts.values()):
+        logger.info("Protected stored secrets: %s", counts)
+    return counts

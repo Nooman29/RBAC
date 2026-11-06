@@ -1,4 +1,3 @@
-import json
 import base64
 import logging
 import numpy as np
@@ -7,6 +6,7 @@ from deepface import DeepFace
 from sqlalchemy.orm import Session
 from app.models.biometric import BiometricEnrollment
 from app.core.config import settings
+from app.core.crypto import decrypt_template, encrypt_template
 
 logger = logging.getLogger(__name__)
 
@@ -96,13 +96,14 @@ def enroll_face(db: Session, user_id: int, image_b64: str) -> tuple[bool, str]:
         return False, "No face detected in the frame."
 
     existing = db.query(BiometricEnrollment).filter_by(user_id=user_id).first()
+    # Stored encrypted (app/core/crypto.py); only ever decrypted in memory to compare.
     if existing:
-        existing.embedding = json.dumps(embedding)
+        existing.embedding = encrypt_template(embedding)
         existing.model_name = settings.BIOMETRIC_MODEL
     else:
         db.add(BiometricEnrollment(
             user_id=user_id,
-            embedding=json.dumps(embedding),
+            embedding=encrypt_template(embedding),
             model_name=settings.BIOMETRIC_MODEL,
         ))
 
@@ -129,7 +130,12 @@ def verify_face(db: Session, user_id: int, image_b64: str) -> bool:
     if live_embedding is None:
         return False
 
-    stored_embedding = json.loads(enrollment.embedding)
+    try:
+        stored_embedding = decrypt_template(enrollment.embedding)
+    except ValueError:
+        logger.error("Biometric: enrolment of user_id=%s cannot be decrypted (BIOMETRIC_ENCRYPTION_KEY changed?); "
+                     "the user must enrol again or use the email code", user_id)
+        return False
     distance = cosine_distance(stored_embedding, live_embedding)
     match = distance <= settings.BIOMETRIC_DISTANCE_THRESHOLD
 

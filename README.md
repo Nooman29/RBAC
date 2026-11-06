@@ -161,7 +161,8 @@ with no accounts of its own; it signs users in through this service and asks it 
 | Variable | Default | Meaning |
 |---|---|---|
 | `DATABASE_URL` | required | e.g. `postgresql://user:pass@db:5432/rbac_db` |
-| `SECRET_KEY` | required | Signs tokens and hashes service-client secrets. Changing it logs everyone out and invalidates client secrets |
+| `SECRET_KEY` | required | Signs tokens and keys the hashes of service-client secrets, emailed codes and setup/reset links. Changing it logs everyone out and invalidates client secrets and outstanding codes and links |
+| `BIOMETRIC_ENCRYPTION_KEY` | derived from `SECRET_KEY` | Encrypts stored Face ID templates (a Fernet key; see `backend/.env.docker.example`). Back it up: if it is lost, users must enrol Face ID again. Adding one later is safe; existing templates move to it at startup |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 30 | Token lifetime. There is no refresh token; users sign in again after it expires |
 | `SMTP_HOST`, `SMTP_PORT` | smtp.gmail.com, 587 | Mail server |
 | `SMTP_USER`, `SMTP_PASSWORD` | required | Mail account (Gmail: use an App Password) |
@@ -274,7 +275,10 @@ docker compose exec backend python -m scripts.create_service_client --name "Paym
 
 ## Security checklist for a live deployment
 
-- Use a long random `SECRET_KEY` and `POSTGRES_PASSWORD`; never commit `.env` or `backend/.env.docker`
+- Use a long random `SECRET_KEY` and `POSTGRES_PASSWORD`, set a dedicated `BIOMETRIC_ENCRYPTION_KEY`, and back
+  up all three; never commit `.env` or `backend/.env.docker`
+- Stored secrets are protected: passwords with bcrypt; emailed codes, setup/reset links and service-client secrets
+  as keyed hashes; Face ID templates encrypted (they cannot be hashed, because matching needs the numbers)
 - Keep the database and backend unpublished (the production file already does). Locally, port 8000 is
   published for scripts and the demo module, and a request sent straight to it can forge its client address,
   so do not expose it beyond your machine

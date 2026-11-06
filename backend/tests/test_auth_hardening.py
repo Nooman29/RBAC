@@ -18,6 +18,7 @@ from starlette.requests import Request
 
 from app.api.routes import auth
 from app.core import rate_limit, rbac
+from app.core.crypto import hash_token
 from app.core.security import create_access_token, create_pending_token, decode_pending_token, hash_password
 from app.models.otp import OTPCode
 from app.models.session import UserSession
@@ -42,7 +43,7 @@ def _open_session(db, user):
 
 
 def _code(db, user, code="123456", minutes=5):
-    record = OTPCode(user_id=user.user_id, code=code, used=False,
+    record = OTPCode(user_id=user.user_id, code=hash_token(code), used=False,
                      expires_at=datetime.now(timezone.utc) + timedelta(minutes=minutes))
     db.add(record)
     db.commit()
@@ -207,7 +208,7 @@ def test_password_reset_ends_open_sessions(db, make_user, monkeypatch):
     monkeypatch.setattr(anomaly_service, "score_session", lambda *a, **k: None)
     user = make_user()
     sessions = [_open_session(db, user) for _ in range(2)]
-    user.password_reset_token = "reset-token"
+    user.password_reset_token = hash_token("reset-token")
     user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
     db.commit()
 

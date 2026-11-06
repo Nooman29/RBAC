@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     BIOMETRIC_MODEL: str = "Facenet512"
     BIOMETRIC_DETECTOR: str = "retinaface"
     BIOMETRIC_DISTANCE_THRESHOLD: float = 0.30
+    # Encrypts stored face templates (app/core/crypto.py). A Fernet key: generate one with
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Back it up: if it is lost, users must enrol Face ID again (email codes still work).
+    # Empty: a key derived from SECRET_KEY is used, and a warning is logged at startup.
+    BIOMETRIC_ENCRYPTION_KEY: str = ""
 
     # SMTP (OTP)
     SMTP_HOST: str = "smtp.gmail.com"

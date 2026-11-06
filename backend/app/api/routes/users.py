@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from app.services import welcome_email_service
 
 from app.db.database import get_db
+from app.core.crypto import hash_token
 from app.core.security import hash_password
 from app.core.visibility import visibility_scope, apply_visibility, in_scope, out_of_scope_message
 from app.models.user import User
@@ -131,7 +132,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
         department=payload.department,
         password=placeholder_password,
         password_set=False,
-        password_setup_token=setup_token,
+        password_setup_token=hash_token(setup_token),   # only the hash is stored; the email has the token
         password_setup_expires=datetime.now(timezone.utc) + timedelta(hours=SETUP_TOKEN_EXPIRE_HOURS),
         biometric_choice_made=False,
     )
@@ -181,7 +182,7 @@ def resend_setup_email(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="User has already completed account setup.")
 
     setup_token = secrets.token_urlsafe(32)
-    user.password_setup_token = setup_token
+    user.password_setup_token = hash_token(setup_token)
     user.password_setup_expires = datetime.now(timezone.utc) + timedelta(hours=SETUP_TOKEN_EXPIRE_HOURS)
     db.commit()
 
