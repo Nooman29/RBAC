@@ -237,8 +237,11 @@ cannot, `docker compose logs caddy` will say why (usually the DNS record or a cl
 
 ### Option B: a temporary public demo from your own computer
 
-For a quick demo without a server, run the local stack and expose it with a tunnel that provides HTTPS, for
-example Cloudflare's:
+For a quick demo without a server, one script does everything below on Windows (start the system, open a
+Cloudflare tunnel, point email links at it, print the link) and undoes it with `-Stop`:
+`powershell -ExecutionPolicy Bypass -File demo\start-public-demo.ps1`. See
+[`demo/PUBLIC_DEMO.md`](demo/PUBLIC_DEMO.md). By hand, run the local stack and expose it with a tunnel that
+provides HTTPS, for example Cloudflare's:
 
 ```bash
 cloudflared tunnel --url http://127.0.0.1:5173

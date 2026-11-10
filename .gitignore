@@ -37,3 +37,5 @@ Thumbs.db
 !backend/.env.docker.example
 !.env.example
 demo/.env
+# demo/start-public-demo.ps1: downloaded cloudflared, tunnel logs, state
+demo/tools/
