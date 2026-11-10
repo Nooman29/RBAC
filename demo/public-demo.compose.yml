@@ -1,0 +1,11 @@
+# Applied only by demo/start-public-demo.ps1 while a public HTTPS link is open, on top of
+# docker-compose.yml. backend/.env.docker is never edited; "start-public-demo.ps1 -Stop" (or a plain
+# "docker compose up -d") puts the backend back to its normal settings.
+services:
+  backend:
+    environment:
+      # Email links (password setup and reset) must point at the public https address.
+      FRONTEND_URL: ${PUBLIC_DEMO_URL:?run demo/start-public-demo.ps1 instead of using this file directly}
+      # Visitors arrive through Cloudflare's tunnel and then nginx: the visitor's address is the second
+      # entry from the end of X-Forwarded-For (see TRUSTED_PROXY_HOPS in backend/app/core/config.py).
+      TRUSTED_PROXY_HOPS: "2"

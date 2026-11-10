@@ -34,4 +34,7 @@ Then open the RBAC dashboard at http://127.0.0.1:5173: **Integrations -> Authori
 **Reported events** show every call the module made.
 Remove the demo users: `docker compose exec backend python -m scripts.create_demo_users --remove --yes`.
 
+To let others open the system or this module from their own devices (for example at the defence), see
+[`PUBLIC_DEMO.md`](PUBLIC_DEMO.md): one script opens a temporary https link.
+
 Use 127.0.0.1 rather than localhost on Windows: localhost can resolve to IPv6 (::1), which the Docker ports do not answer on.
